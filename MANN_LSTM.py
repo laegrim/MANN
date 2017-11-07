@@ -3,10 +3,10 @@ from keras import backend as K
 import tensorflow as tf
 from keras.engine.topology import Layer
 from keras import initializers, activations, regularizers, constraints
-from keras.layers import LSTM
+from keras.layers import RNN
 import numpy as np
 
-class MANN_LSTM(LSTM):
+class MANN_LSTM(RNN):
     
     def __init__(self, units, memory,
                 activation='tanh',
@@ -65,7 +65,7 @@ class MANN_LSTM(LSTM):
                         usage_decay=usage_decay,
 			**kwargs)
         
-            super(MANN_LSTM, self).super(LSTM, self).__init__(cell,
+            super(MANN_LSTM, self).__init__(cell,
                                        return_sequences=return_sequences,
                                        return_state=return_state,
                                        go_backwards=go_backwards,
