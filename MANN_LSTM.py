@@ -165,7 +165,7 @@ class MANN_LSTM(RNN):
     	return self.cell.memory
 
     @property
-    def batch_size(self)
+    def batch_size(self):
     	return self.cell.batch_size
 
     def get_config(self):
@@ -197,8 +197,6 @@ class MANN_LSTM(RNN):
 
     @classmethod
     def from_config(cls, config):
-        if 'implementation' in config and config['implementation'] == 0:
-            config['implementation'] = 1
         return cls(**config)
 
         
@@ -499,7 +497,7 @@ class MANN_LSTMCell(Layer):
         #calculate the least used weights
         v, i = tf.nn.top_k(self.controller_wu, self.controller_wu.shape[1])
         n = min(self.reads, self.memory.shape[1])
-        nth_smallest = K.reshape(v[:, -n], (32, 1))
+        nth_smallest = K.reshape(v[:, -n], (self.batch_size, 1))
         smallest_index = tf.reduce_min(i[:, -1])
         nth_smallest = tf.matmul(nth_smallest, tf.constant(1., shape=(1, self.memory.shape[0])))
         lt = tf.less_equal(self.controller_wu, nth_smallest)
@@ -520,7 +518,6 @@ class MANN_LSTMCell(Layer):
         if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
                 h._uses_learning_phase = True
-        
-        print(r.shape)        
+                
         return r, [h, c, r]
 
