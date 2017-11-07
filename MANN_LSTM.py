@@ -6,6 +6,187 @@ from keras import initializers, activations, regularizers, constraints
 from keras.layers import RNN
 import numpy as np
 
+def _add_inbound_node(layer, input_tensors, output_tensors,
+                          input_masks, output_masks,
+                          input_shapes, output_shapes, arguments=None):
+        """Internal method to create an inbound node for the layer.
+        # Arguments
+            input_tensors: list of input tensors.
+            output_tensors: list of output tensors.
+            input_masks: list of input masks (a mask can be a tensor, or None).
+            output_masks: list of output masks (a mask can be a tensor, or None).
+            input_shapes: list of input shape tuples.
+            output_shapes: list of output shape tuples.
+            arguments: dictionary of keyword arguments that were passed to the
+                `call` method of the layer at the call that created the node.
+        """
+        input_tensors = _to_list(input_tensors)
+        output_tensors = _to_list(output_tensors)
+        input_masks = _to_list(input_masks)
+        output_masks = _to_list(output_masks)
+        input_shapes = _to_list(input_shapes)
+        output_shapes = _to_list(output_shapes)
+
+        # Collect input tensor(s) coordinates.
+        inbound_layers = []
+        node_indices = []
+        tensor_indices = []
+        for x in input_tensors:
+            if hasattr(x, '_keras_history'):
+                inbound_layer, node_index, tensor_index = x._keras_history
+                inbound_layers.append(inbound_layer)
+                node_indices.append(node_index)
+                tensor_indices.append(tensor_index)
+            else:
+                inbound_layers.append(None)
+                node_indices.append(None)
+                tensor_indices.append(None)
+
+        # Create node, add it to inbound nodes.
+        Node(
+            layer,
+            inbound_layers=inbound_layers,
+            node_indices=node_indices,
+            tensor_indices=tensor_indices,
+            input_tensors=input_tensors,
+            output_tensors=output_tensors,
+            input_masks=input_masks,
+            output_masks=output_masks,
+            input_shapes=input_shapes,
+            output_shapes=output_shapes,
+            arguments=arguments
+        )
+
+        # Update tensor history, _keras_shape and _uses_learning_phase.
+        for i in range(len(output_tensors)):
+        	print(i)
+            output_tensors[i]._keras_shape = output_shapes[i]
+            uses_lp = any([getattr(x, '_uses_learning_phase', False) for x in input_tensors])
+            uses_lp = getattr(layer, 'uses_learning_phase', False) or uses_lp
+            output_tensors[i]._uses_learning_phase = getattr(output_tensors[i], '_uses_learning_phase', False) or uses_lp
+            output_tensors[i]._keras_history = (layer,
+                                                len(layer.inbound_nodes) - 1,
+                                                i)
+
+
+def __call(layer, inputs, **kwargs):
+        """Wrapper around self.call(), for handling internal references.
+        If a Keras tensor is passed:
+            - We call self._add_inbound_node().
+            - If necessary, we `build` the layer to match
+                the _keras_shape of the input(s).
+            - We update the _keras_shape of every input tensor with
+                its new shape (obtained via self.compute_output_shape).
+                This is done as part of _add_inbound_node().
+            - We update the _keras_history of the output tensor(s)
+                with the current layer.
+                This is done as part of _add_inbound_node().
+        # Arguments
+            inputs: Can be a tensor or list/tuple of tensors.
+            **kwargs: Additional keyword arguments to be passed to `call()`.
+        # Returns
+            Output of the layer's `call` method.
+        # Raises
+            ValueError: in case the layer is missing shape information
+                for its `build` call.
+        """
+        if isinstance(inputs, list):
+            inputs = inputs[:]
+        with K.name_scope(layer.name):
+            # Handle laying building (weight creating, input spec locking).
+            if not layer.built:
+                # Raise exceptions in case the input is not compatible
+                # with the input_spec specified in the layer constructor.
+                layer.assert_input_compatibility(inputs)
+
+                # Collect input shapes to build layer.
+                input_shapes = []
+                for x_elem in _to_list(inputs):
+                    if hasattr(x_elem, '_keras_shape'):
+                        input_shapes.append(x_elem._keras_shape)
+                    elif hasattr(K, 'int_shape'):
+                        input_shapes.append(K.int_shape(x_elem))
+                    else:
+                        raise ValueError('You tried to call layer "' + self.name +
+                                         '". This layer has no information'
+                                         ' about its expected input shape, '
+                                         'and thus cannot be built. '
+                                         'You can build it manually via: '
+                                         '`layer.build(batch_input_shape)`')
+                if len(input_shapes) == 1:
+                    layer.build(input_shapes[0])
+                else:
+                    layer.build(input_shapes)
+                layer.built = True
+
+                # Load weights that were specified at layer instantiation.
+                if layer._initial_weights is not None:
+                    layer.set_weights(layer._initial_weights)
+
+            # Raise exceptions in case the input is not compatible
+            # with the input_spec set at build time.
+            layer.assert_input_compatibility(inputs)
+
+            # Handle mask propagation.
+            previous_mask = _collect_previous_mask(inputs)
+            user_kwargs = copy.copy(kwargs)
+            if not _is_all_none(previous_mask):
+                # The previous layer generated a mask.
+                if has_arg(layer.call, 'mask'):
+                    if 'mask' not in kwargs:
+                        # If mask is explicitly passed to __call__,
+                        # we should override the default mask.
+                        kwargs['mask'] = previous_mask
+            # Handle automatic shape inference (only useful for Theano).
+            input_shape = _collect_input_shape(inputs)
+
+            # Actually call the layer, collecting output(s), mask(s), and shape(s).
+            output = layer.call(inputs, **kwargs)
+            output_mask = layer.compute_mask(inputs, previous_mask)
+
+            # If the layer returns tensors from its inputs, unmodified,
+            # we copy them to avoid loss of tensor metadata.
+            output_ls = _to_list(output)
+            inputs_ls = _to_list(inputs)
+            output_ls_copy = []
+            for x in output_ls:
+                if x in inputs_ls:
+                    x = K.identity(x)
+                output_ls_copy.append(x)
+            if len(output_ls_copy) == 1:
+                output = output_ls_copy[0]
+            else:
+                output = output_ls_copy
+
+            # Inferring the output shape is only relevant for Theano.
+            if all([s is not None for s in _to_list(input_shape)]):
+                output_shape = layer.compute_output_shape(input_shape)
+            else:
+                if isinstance(input_shape, list):
+                    output_shape = [None for _ in input_shape]
+                else:
+                    output_shape = None
+
+            if not isinstance(output_mask, (list, tuple)) and len(output_ls) > 1:
+                # Augment the mask to match the length of the output.
+                output_mask = [output_mask] * len(output_ls)
+
+            # Add an inbound node to the layer, so that it keeps track
+            # of the call and of all new variables created during the call.
+            # This also updates the layer history of the output tensor(s).
+            # If the input tensor(s) had not previous Keras history,
+            # this does nothing.
+            _add_inbound_node(layer, input_tensors=inputs, output_tensors=output,
+                                   input_masks=previous_mask, output_masks=output_mask,
+                                   input_shapes=input_shape, output_shapes=output_shape,
+                                   arguments=user_kwargs)
+
+            # Apply activity regularizer if any:
+            if hasattr(layer, 'activity_regularizer') and layer.activity_regularizer is not None:
+                regularization_losses = [layer.activity_regularizer(x) for x in _to_list(output)]
+                layer.add_loss(regularization_losses, _to_list(inputs))
+        return output
+
 class MANN_LSTM(RNN):
     
     def __init__(self, units, memory, batch_size,
@@ -74,6 +255,53 @@ class MANN_LSTM(RNN):
                                        **kwargs)
             
             self.activity_regularizer = regularizers.get(activity_regularizer)
+
+	def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
+        inputs, initial_state, constants = self._standardize_args(
+            inputs, initial_state, constants)
+
+        if initial_state is None and constants is None:
+            __call(self, inputs, **kwargs)
+
+        # If any of `initial_state` or `constants` are specified and are Keras
+        # tensors, then add them to the inputs and temporarily modify the
+        # input_spec to include them.
+
+        additional_inputs = []
+        additional_specs = []
+        if initial_state is not None:
+            kwargs['initial_state'] = initial_state
+            additional_inputs += initial_state
+            self.state_spec = [InputSpec(shape=K.int_shape(state))
+                               for state in initial_state]
+            additional_specs += self.state_spec
+        if constants is not None:
+            kwargs['constants'] = constants
+            additional_inputs += constants
+            self.constants_spec = [InputSpec(shape=K.int_shape(constant))
+                                   for constant in constants]
+            self._num_constants = len(constants)
+            additional_specs += self.constants_spec
+        # at this point additional_inputs cannot be empty
+        is_keras_tensor = hasattr(additional_inputs[0], '_keras_history')
+        for tensor in additional_inputs:
+            if hasattr(tensor, '_keras_history') != is_keras_tensor:
+                raise ValueError('The initial state or constants of an RNN'
+                                 ' layer cannot be specified with a mix of'
+                                 ' Keras tensors and non-Keras tensors')
+
+        if is_keras_tensor:
+            # Compute the full input spec, including state and constants
+            full_input = [inputs] + additional_inputs
+            full_input_spec = self.input_spec + additional_specs
+            # Perform the call with temporarily replaced input_spec
+            original_input_spec = self.input_spec
+            self.input_spec = full_input_spec
+            output = __call(self, full_input, **kwargs)
+            self.input_spec = original_input_spec
+            return output
+        else:
+            return __call(self, inputs, **kwargs)
             
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
@@ -85,8 +313,6 @@ class MANN_LSTM(RNN):
                               mask=mask, 
                               training=training, 
                               initial_state=initial_state)
-
-
 
     @property
     def units(self):
