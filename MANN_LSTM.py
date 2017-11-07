@@ -1,10 +1,38 @@
 
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
+
+import numpy as np
+import json
+import yaml
+import warnings
+import copy
+import os
+import re
+from six.moves import zip
+
+from keras.utils.io_utils import ask_to_proceed_with_overwrite
+from keras.utils.layer_utils import print_summary as print_layer_summary
+from keras.utils.layer_utils import count_params
+from keras.utils.generic_utils import has_arg
+from keras.utils import conv_utils
+from keras.legacy import interfaces
+
+
+try:
+    import h5py
+except ImportError:
+    h5py = None
+
 from keras import backend as K
 import tensorflow as tf
 from keras.engine.topology import Layer
 from keras import initializers, activations, regularizers, constraints
 from keras.layers import RNN
 import numpy as np
+
+from keras.engine.topology import _to_list, _collect_previous_mask, _is_all_none, _collect_input_shape, Node
 
 def _add_inbound_node(layer, input_tensors, output_tensors,
                           input_masks, output_masks,
@@ -20,6 +48,7 @@ def _add_inbound_node(layer, input_tensors, output_tensors,
             arguments: dictionary of keyword arguments that were passed to the
                 `call` method of the layer at the call that created the node.
         """
+        print(output_tensors)
         input_tensors = _to_list(input_tensors)
         output_tensors = _to_list(output_tensors)
         input_masks = _to_list(input_masks)
@@ -59,7 +88,7 @@ def _add_inbound_node(layer, input_tensors, output_tensors,
 
         # Update tensor history, _keras_shape and _uses_learning_phase.
         for i in range(len(output_tensors)):
-        	print(i)
+            print(output_tensors)
             output_tensors[i]._keras_shape = output_shapes[i]
             uses_lp = any([getattr(x, '_uses_learning_phase', False) for x in input_tensors])
             uses_lp = getattr(layer, 'uses_learning_phase', False) or uses_lp
@@ -69,7 +98,7 @@ def _add_inbound_node(layer, input_tensors, output_tensors,
                                                 i)
 
 
-def __call(layer, inputs, **kwargs):
+def call__(layer, inputs, **kwargs):
         """Wrapper around self.call(), for handling internal references.
         If a Keras tensor is passed:
             - We call self._add_inbound_node().
@@ -139,10 +168,13 @@ def __call(layer, inputs, **kwargs):
                         kwargs['mask'] = previous_mask
             # Handle automatic shape inference (only useful for Theano).
             input_shape = _collect_input_shape(inputs)
-
+           
+            print(inputs)
             # Actually call the layer, collecting output(s), mask(s), and shape(s).
             output = layer.call(inputs, **kwargs)
             output_mask = layer.compute_mask(inputs, previous_mask)
+            
+            print(output)
 
             # If the layer returns tensors from its inputs, unmodified,
             # we copy them to avoid loss of tensor metadata.
@@ -157,9 +189,9 @@ def __call(layer, inputs, **kwargs):
                 output = output_ls_copy[0]
             else:
                 output = output_ls_copy
-
+            print(output)
             # Inferring the output shape is only relevant for Theano.
-            if all([s is not None for s in _to_list(input_shape)]):
+            if all([s is not None for s in list(input_shape)]):
                 output_shape = layer.compute_output_shape(input_shape)
             else:
                 if isinstance(input_shape, list):
@@ -256,12 +288,12 @@ class MANN_LSTM(RNN):
             
             self.activity_regularizer = regularizers.get(activity_regularizer)
 
-	def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
+    def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
         inputs, initial_state, constants = self._standardize_args(
             inputs, initial_state, constants)
 
         if initial_state is None and constants is None:
-            __call(self, inputs, **kwargs)
+            call__(self, inputs, **kwargs)
 
         # If any of `initial_state` or `constants` are specified and are Keras
         # tensors, then add them to the inputs and temporarily modify the
@@ -297,11 +329,11 @@ class MANN_LSTM(RNN):
             # Perform the call with temporarily replaced input_spec
             original_input_spec = self.input_spec
             self.input_spec = full_input_spec
-            output = __call(self, full_input, **kwargs)
+            output = call__(self, full_input, **kwargs)
             self.input_spec = original_input_spec
             return output
         else:
-            return __call(self, inputs, **kwargs)
+            return call__(self, inputs, **kwargs)
             
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
@@ -309,7 +341,7 @@ class MANN_LSTM(RNN):
             self.cell._generate_recurrent_dropout_mask(inputs, training=training)
             self.cell._generate_controller_dropout_mask(inputs, training=training)
             
-            super(MANN_LSTM, self).call(inputs, 
+            return super(MANN_LSTM, self).call(inputs, 
                               mask=mask, 
                               training=training, 
                               initial_state=initial_state)
@@ -693,7 +725,12 @@ class MANN_LSTMCell(Layer):
         o = self.recurrent_activation(x_o + h_tm1_o)
         h = o * self.activation(c)
  
-        
+        print(h)
+        print(c)
+        print(o)
+        print(f)
+        print(i)
+        print(self.memory) 
         if 0 < self.controller_dropout < 1.:
             
             controller_r = h * cont_dp_mask[0]
@@ -715,7 +752,7 @@ class MANN_LSTMCell(Layer):
         self.controller_wr = K.softmax(mem_cos_similarity)
         r = K.dot(self.controller_wr, self.memory)
         self.reads += 1        
-        
+        print(r)
         #calculate the usage weights
         self.controller_wu = self.usage_decay * self.controller_wu + \
                             self.controller_wr + self.controller_ww
