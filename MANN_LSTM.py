@@ -8,7 +8,7 @@ import numpy as np
 
 class MANN_LSTM(RNN):
     
-    def __init__(self, units, memory, batch_size,
+    def __init__(self, units, memory,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -45,7 +45,7 @@ class MANN_LSTM(RNN):
                     dropout = 0.
                     recurrent_dropout = 0.
                     
-            cell = MANN_LSTMCell(units, memory, batch_size,
+            cell = MANN_LSTMCell(units, memory,
                         activation = activation,
                         recurrent_activation = recurrent_activation,
                         use_bias = use_bias,
@@ -162,14 +162,9 @@ class MANN_LSTM(RNN):
     def memory(self):
     	return self.cell.memory
 
-    @property
-    def batch_size(self):
-    	return self.cell.batch_size
-
     def get_config(self):
         config = {'units': self.units,
                   'memory': self.memory,
-                  'batch_size': self.batch_size,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation': activations.serialize(self.recurrent_activation),
                   'use_bias': self.use_bias,
@@ -199,7 +194,7 @@ class MANN_LSTM(RNN):
 
         
 class MANN_LSTMCell(Layer):
-    def __init__(self, units, memory, batch_size,
+    def __init__(self, units, memory,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -254,7 +249,6 @@ class MANN_LSTMCell(Layer):
 
         self.usage_decay = usage_decay
         self.memory = memory
-        self.batch_size = batch_size
         
     def _generate_dropout_mask(self, inputs, training=None):
         if 0 < self.dropout < 1:
@@ -335,13 +329,13 @@ class MANN_LSTMCell(Layer):
 
         def controller_initializer(shape, *args, **kwargs):
         	return K.concatenate([
-        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Ones()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Ones()((, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
         		])
 
-        self.controller = self.add_weight(shape = (self.batch_size, self.memory.shape[0] * 4),
+        self.controller = self.add_weight(shape = (, self.memory.shape[0] * 4),
         	name = 'controller',
         	initializer = controller_initializer,
         	regularizer = None,
@@ -500,7 +494,7 @@ class MANN_LSTMCell(Layer):
         #calculate the least used weights
         v, i = tf.nn.top_k(self.controller_wu, self.controller_wu.shape[1])
         n = min(self.reads, self.memory.shape[1])
-        nth_smallest = K.reshape(v[:, -n], (self.batch_size, 1))
+        nth_smallest = K.reshape(v[:, -n], (inputs[0], 1))
         smallest_index = tf.reduce_min(i[:, -1])
         nth_smallest = tf.matmul(nth_smallest, tf.constant(1., shape=(1, self.memory.shape[0])))
         lt = tf.less_equal(self.controller_wu, nth_smallest)
