@@ -8,7 +8,7 @@ import numpy as np
 
 class MANN_LSTM(RNN):
     
-    def __init__(self, units, memory,
+    def __init__(self, units, memory, batch_size,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -45,7 +45,7 @@ class MANN_LSTM(RNN):
                     dropout = 0.
                     recurrent_dropout = 0.
                     
-            cell = MANN_LSTMCell(units, memory,
+            cell = MANN_LSTMCell(units, memory, batch_size,
                         activation = activation,
                         recurrent_activation = recurrent_activation,
                         use_bias = use_bias,
@@ -87,7 +87,7 @@ class MANN_LSTM(RNN):
                               initial_state=initial_state)
         
 class MANN_LSTMCell(Layer):
-    def __init__(self, units, memory,
+    def __init__(self, units, memory, batch_size,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -142,6 +142,7 @@ class MANN_LSTMCell(Layer):
 
         self.usage_decay = usage_decay
         self.memory = memory
+        self.batch_size = batch_size
         
     def _generate_dropout_mask(self, inputs, training=None):
         if 0 < self.dropout < 1:
@@ -213,7 +214,27 @@ class MANN_LSTMCell(Layer):
                                             regularizer = self.write_gate_regularizer,
                                             constraint = self.write_gate_constraint)
 
-        self.memory = K.zeros((memory, units))
+        self.memory = self.add_weight(shape = (memory, units),
+        									name = 'memory',
+        									initializer = 'zeros',
+        									regularizer = None,
+        									trainable = False,
+        									constraint = None)
+
+        def controller_initializer(shape, *args, **kwargs):
+        	return K.concatenate([
+        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Ones()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((self.batch_size, self.memory.shape[0]), *args, **kwargs),
+        		])
+
+        self.controller = self.add_weight(shape = (self.batch_size, self.memory.shape[0] * 4),
+        	name = 'controller',
+        	initializer = controller_initializer,
+        	regularizer = None,
+        	constraint = None,
+        	trainable = False)
 
         
         if self.use_bias:
@@ -229,7 +250,7 @@ class MANN_LSTMCell(Layer):
                     ])
             else:
                 
-                bias_initializer = self.bias_initializer
+            	bias_initializer = self.bias_initializer
                 
             self.bias = self.add_weight(shape = (self.units * 4,),
                                        name = 'bias',
@@ -252,10 +273,10 @@ class MANN_LSTMCell(Layer):
         self.recurrent_kernel_o = self.recurrent_kernel[:, self.units * 3: self.units * 4]
         self.recurrent_kernel_r = self.recurrent_kernel[:, self.units * 4:] 
         
-        self.controller_wu = K.zeros((32, self.memory.shape[0]))
-        self.controller_wlu = K.ones((32, self.memory.shape[0]))
-        self.controller_wr = K.zeros((32, self.memory.shape[0]))
-        self.controller_ww = K.zeros((32, self.memory.shape[0]))
+        self.controller_wu = self.controller[:, :self.memory.shape[0]]
+        self.controller_wlu = self.controller[:, self.memory.shape[0]: self.memory.shape[0] * 2]
+        self.controller_wr = self.controller[:, self.memory.shape[0] * 2: self.memory.shape[0] * 3]
+        self.controller_ww = self.controller[:, self.memory.shape[0] *3:]
         
         if self.use_bias:
             
