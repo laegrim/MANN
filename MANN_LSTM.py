@@ -65,7 +65,7 @@ class MANN_LSTM(LSTM):
                         usage_decay=usage_decay,
 			**kwargs)
         
-            super(LSTM, self).__init__(cell,
+            super(MANN_LSTM, self).super(LSTM, self).__init__(cell,
                                        return_sequences=return_sequences,
                                        return_state=return_state,
                                        go_backwards=go_backwards,
@@ -141,9 +141,8 @@ class MANN_LSTMCell(Layer):
         self._controller_dropout_mask = None
 
         self.usage_decay = usage_decay
+        self.memory = memory
         
-        self.memory = K.zeros((memory, units))
-
     def _generate_dropout_mask(self, inputs, training=None):
         if 0 < self.dropout < 1:
             ones = K.ones_like(K.squeeze(inputs[:, 0:1, :], axis=1))
@@ -213,6 +212,9 @@ class MANN_LSTMCell(Layer):
                                             initializer = self.write_gate_initializer,
                                             regularizer = self.write_gate_regularizer,
                                             constraint = self.write_gate_constraint)
+
+        self.memory = K.zeros((memory, units))
+
         
         if self.use_bias:
             
