@@ -71,7 +71,7 @@ class MANN_LSTM(RNN):
                                        go_backwards=go_backwards,
                                        stateful=stateful,
                                        unroll=unroll,
-                                       **kwargs) 
+                                       **kwargs)
             
             self.activity_regularizer = regularizers.get(activity_regularizer)
             
@@ -81,7 +81,7 @@ class MANN_LSTM(RNN):
             self.cell._generate_recurrent_dropout_mask(inputs, training=training)
             self.cell._generate_controller_dropout_mask(inputs, training=training)
             
-            super().call(inputs, 
+            super(MANN_LSTM, self).call(inputs, 
                               mask=mask, 
                               training=training, 
                               initial_state=initial_state)
@@ -214,12 +214,12 @@ class MANN_LSTMCell(Layer):
                                             regularizer = self.write_gate_regularizer,
                                             constraint = self.write_gate_constraint)
 
-        self.memory = self.add_weight(shape = (memory, units),
-        									name = 'memory',
-        									initializer = 'zeros',
-        									regularizer = None,
-        									trainable = False,
-        									constraint = None)
+        self.memory = self.add_weight(shape = (self.memory, self.units),
+        				name = 'memory',
+        				initializer = 'zeros',
+        				regularizer = None,
+        				trainable = False,
+        				constraint = None)
 
         def controller_initializer(shape, *args, **kwargs):
         	return K.concatenate([
@@ -383,7 +383,7 @@ class MANN_LSTMCell(Layer):
         #calculate the least used weights
         v, i = tf.nn.top_k(self.controller_wu, self.controller_wu.shape[1])
         n = min(self.reads, self.memory.shape[1])
-        nth_smallest = v[:, -n]
+        nth_smallest = K.reshape(v[:, -n], (32, 1))
         smallest_index = tf.reduce_min(i[:, -1])
         nth_smallest = tf.matmul(nth_smallest, tf.constant(1., shape=(1, self.memory.shape[0])))
         lt = tf.less_equal(self.controller_wu, nth_smallest)
@@ -404,6 +404,7 @@ class MANN_LSTMCell(Layer):
         if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
                 h._uses_learning_phase = True
-                
+        
+        print(r.shape)        
         return r, [h, c, r]
 
