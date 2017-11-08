@@ -301,6 +301,7 @@ class MANN_LSTMCell(Layer):
     def build(self, input_shape):
         
         input_dim = input_shape[-1]
+        init_batch_size = 32
         
         self.kernel = self.add_weight(shape = (input_dim, self.units * 4),
                                      name = 'kernel',
@@ -329,13 +330,13 @@ class MANN_LSTMCell(Layer):
 
         def controller_initializer(shape, *args, **kwargs):
         	return K.concatenate([
-        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Ones()((, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
-        		initializers.Zeros()((, self.memory.shape[0]), *args, **kwargs),
+        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
+        		initializers.Ones()((shape[0], shape[1]), *args, **kwargs),
+        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
+        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
         		])
 
-        self.controller = self.add_weight(shape = (, self.memory.shape[0] * 4),
+        self.controller = self.add_weight(shape = (init_batch_size, self.memory.shape[0] * 4),
         	name = 'controller',
         	initializer = controller_initializer,
         	regularizer = None,
@@ -402,11 +403,11 @@ class MANN_LSTMCell(Layer):
         self.built = True
             
     def call(self, inputs, states, training=None):
-        
+
         dp_mask = self._dropout_mask
         rec_dp_mask = self._recurrent_dropout_mask
         cont_dp_mask = self._controller_dropout_mask
-        
+
         h_tm1 = states[0]
         c_tm1 = states[1]
         r_tm1 = states[2]
@@ -458,13 +459,7 @@ class MANN_LSTMCell(Layer):
         c = f * c_tm1 + i * self.activation(x_c + h_tm1_c)
         o = self.recurrent_activation(x_o + h_tm1_o)
         h = o * self.activation(c)
- 
-        print(h)
-        print(c)
-        print(o)
-        print(f)
-        print(i)
-        print(self.memory) 
+
         if 0 < self.controller_dropout < 1.:
             
             controller_r = h * cont_dp_mask[0]
@@ -486,7 +481,7 @@ class MANN_LSTMCell(Layer):
         self.controller_wr = K.softmax(mem_cos_similarity)
         r = K.dot(self.controller_wr, self.memory)
         self.reads += 1        
-        print(r)
+
         #calculate the usage weights
         self.controller_wu = self.usage_decay * self.controller_wu + \
                             self.controller_wr + self.controller_ww
@@ -494,7 +489,7 @@ class MANN_LSTMCell(Layer):
         #calculate the least used weights
         v, i = tf.nn.top_k(self.controller_wu, self.controller_wu.shape[1])
         n = min(self.reads, self.memory.shape[1])
-        nth_smallest = K.reshape(v[:, -n], (inputs[0], 1))
+        nth_smallest = K.reshape(v[:, -n], (32, 1))
         smallest_index = tf.reduce_min(i[:, -1])
         nth_smallest = tf.matmul(nth_smallest, tf.constant(1., shape=(1, self.memory.shape[0])))
         lt = tf.less_equal(self.controller_wu, nth_smallest)
