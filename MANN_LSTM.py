@@ -379,7 +379,9 @@ class MANN_LSTMCell(Layer):
         #input should be (samples, timesteps, input_dim)
         #taken from keras.layers.RNN
         template = K.zeros_like(inputs)
-        template = K.sum(template, axis=1) #(samples, input_dim)
+        template = K.sum(template, axis=(1,2)) #(samples, input_dim)
+        template = template.reshape(template, (template.shape[0], 1))
+        template = tf.matmul(template, K.zeros(1, self.units))
 
         h_tm1 = K.zeros_like(template)
         c_tm1 = K.zeros_like(template)
