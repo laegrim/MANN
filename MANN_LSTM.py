@@ -8,7 +8,7 @@ import numpy as np
 
 class MANN_LSTM(RNN):
     
-    def __init__(self, units, memory,
+    def __init__(self, units, memory_size,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -45,7 +45,7 @@ class MANN_LSTM(RNN):
                     dropout = 0.
                     recurrent_dropout = 0.
                     
-            cell = MANN_LSTMCell(units, memory,
+            cell = MANN_LSTMCell(units, memory_size,
                         activation = activation,
                         recurrent_activation = recurrent_activation,
                         use_bias = use_bias,
@@ -74,6 +74,10 @@ class MANN_LSTM(RNN):
                                        **kwargs)
             
             self.activity_regularizer = regularizers.get(activity_regularizer)
+
+    def get_initial_state(self, inputs):
+
+    	return self.cell.get_initial_state(inputs)
             
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
@@ -159,8 +163,8 @@ class MANN_LSTM(RNN):
     	return self.cell.usage_decay
 
     @property
-    def memory(self):
-    	return self.cell.memory
+    def memory_size(self):
+    	return self.cell.memory_size
 
     def get_config(self):
         config = {'units': self.units,
@@ -194,7 +198,7 @@ class MANN_LSTM(RNN):
 
         
 class MANN_LSTMCell(Layer):
-    def __init__(self, units, memory,
+    def __init__(self, units, memory_size,
                 activation='tanh',
                 recurrent_activation='hard_sigmoid',
                 use_bias=True,
@@ -248,7 +252,7 @@ class MANN_LSTMCell(Layer):
         self._controller_dropout_mask = None
 
         self.usage_decay = usage_decay
-        self.memory = memory
+        self.memory_size = memory_size
         
     def _generate_dropout_mask(self, inputs, training=None):
         if 0 < self.dropout < 1:
@@ -301,7 +305,6 @@ class MANN_LSTMCell(Layer):
     def build(self, input_shape):
         
         input_dim = input_shape[-1]
-        init_batch_size = 32
         
         self.kernel = self.add_weight(shape = (input_dim, self.units * 4),
                                      name = 'kernel',
@@ -319,30 +322,7 @@ class MANN_LSTMCell(Layer):
                                             name = 'write_gate',
                                             initializer = self.write_gate_initializer,
                                             regularizer = self.write_gate_regularizer,
-                                            constraint = self.write_gate_constraint)
-
-        self.memory = self.add_weight(shape = (self.memory, self.units),
-        				name = 'memory',
-        				initializer = 'zeros',
-        				regularizer = None,
-        				trainable = False,
-        				constraint = None)
-
-        def controller_initializer(shape, *args, **kwargs):
-        	return K.concatenate([
-        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
-        		initializers.Ones()((shape[0], shape[1]), *args, **kwargs),
-        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
-        		initializers.Zeros()((shape[0], shape[1]), *args, **kwargs),
-        		])
-
-        self.controller = self.add_weight(shape = (init_batch_size, self.memory.shape[0] * 4),
-        	name = 'controller',
-        	initializer = controller_initializer,
-        	regularizer = None,
-        	constraint = None,
-        	trainable = False)
-
+                                            constraint = self.write_gate_constraint
         
         if self.use_bias:
             
@@ -364,7 +344,7 @@ class MANN_LSTMCell(Layer):
                                        initializer = bias_initializer,
                                        regularizer = self.bias_regularizer,
                                        constraint = self.bias_constraint)
-            
+
         else:
             
             self.bias = None
@@ -380,11 +360,6 @@ class MANN_LSTMCell(Layer):
         self.recurrent_kernel_o = self.recurrent_kernel[:, self.units * 3: self.units * 4]
         self.recurrent_kernel_r = self.recurrent_kernel[:, self.units * 4:] 
         
-        self.controller_wu = self.controller[:, :self.memory.shape[0]]
-        self.controller_wlu = self.controller[:, self.memory.shape[0]: self.memory.shape[0] * 2]
-        self.controller_wr = self.controller[:, self.memory.shape[0] * 2: self.memory.shape[0] * 3]
-        self.controller_ww = self.controller[:, self.memory.shape[0] *3:]
-        
         if self.use_bias:
             
             self.bias_i = self.bias[:self.units]
@@ -397,10 +372,38 @@ class MANN_LSTMCell(Layer):
             self.bias_f = None
             self.bias_c = None
             self.bias_o = None
-            
-        self.reads = 1
-        
+                    
         self.built = True
+
+    def get_initial_states(self, inputs):
+
+    	#input should be (samples, timesteps, input_dim)
+    	#taken from keras.layers.RNN
+    	batch_size = inputs.shape[0]
+
+    	h_tm1 = K.zeros((batch_size, self.units))
+    	c_tm1 = K.zeros((batch_size, self.units))
+    	r_tm1 = K.zeros((batch_size, self.units))
+    	m_tm1 = K.zeros((batch_size, self.units))
+    	c_wu_tm1 = K.zeros((self.memory_size,))
+    	c_wlu_tm1 = K.zeros((self.memory_size,))
+    	c_wr_tm1 = K.zeros((self.memory_size,))
+    	c_ww_tm1 = K.zeros((self.memory_size,))
+    	reads = tf.Variable(0, tf.int16)
+
+    	self.state_size = [h_tm1.shape,
+    						c_tm1.shape,
+    						r_tm1.shape,
+    						m_tm1.shape,
+    						c_wu_tm1.shape,
+    						c_wlu_tm1.shape,
+    						c_wr_tm1.shape,
+    						c_ww_tm1.shape,
+    						reads.shape]
+
+    	return [h_tm1, c_tm1, r_tm1, m_tm1, 
+    			c_wu_tm1, c_wlu_tm1, c_wr_tm1,
+    			c_ww_tm1, reads]
             
     def call(self, inputs, states, training=None):
 
@@ -411,6 +414,12 @@ class MANN_LSTMCell(Layer):
         h_tm1 = states[0]
         c_tm1 = states[1]
         r_tm1 = states[2]
+        m_tm1 = states[3]
+        c_wu_tm1 = states[4]
+        c_wlu_tm1 = states[5]
+        c_wr_tm1 = states[6]
+        c_ww_tm1 = states[7]
+        reads = states[8]
         
         if 0 < self.dropout < 1.:
             
@@ -460,56 +469,72 @@ class MANN_LSTMCell(Layer):
         o = self.recurrent_activation(x_o + h_tm1_o)
         h = o * self.activation(c)
 
+        #get the key, check if there's dropouts
         if 0 < self.controller_dropout < 1.:
             
-            controller_r = h * cont_dp_mask[0]
-            
+            key_list = h * cont_dp_mask[0]
             
         else:
             
-            controller_r = h
-            
-        #calculate the write weights
-        self.controller_ww = K.sigmoid(self.write_gate) * self.controller_wr + \
-                    (1 - K.sigmoid(self.write_gate)) * self.controller_wlu
-        
-        #calculate read weights and retrieve the appropriate memory
-        n_controller_r = K.l2_normalize(controller_r, 1)
-        n_memory = K.l2_normalize(self.memory, 1)
-        t_n_memory = K.transpose(n_memory)
-        mem_cos_similarity = K.dot(n_controller_r, t_n_memory)
-        self.controller_wr = K.softmax(mem_cos_similarity)
-        r = K.dot(self.controller_wr, self.memory)
-        self.reads += 1        
+            key_list = h
 
-        #calculate the usage weights
-        self.controller_wu = self.usage_decay * self.controller_wu + \
-                            self.controller_wr + self.controller_ww
+        read_list = []
+        #for the memory access, we need to do this one input at a time
+        #so we unstack the batch of keys
+        #key is (1,units)
+        for key in tf.unstack(key_list):
+            
+        	#calculate the write weights: weight_w = sig(w_gate) * weight_r + (1 - sig(w_gate)) * weight_lu
+        	c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
+                    (1 - K.sigmoid(self.write_gate)) * c_wlu_tm1
         
-        #calculate the least used weights
-        v, i = tf.nn.top_k(self.controller_wu, self.controller_wu.shape[1])
-        n = min(self.reads, self.memory.shape[1])
-        nth_smallest = K.reshape(v[:, -n], (32, 1))
-        smallest_index = tf.reduce_min(i[:, -1])
-        nth_smallest = tf.matmul(nth_smallest, tf.constant(1., shape=(1, self.memory.shape[0])))
-        lt = tf.less_equal(self.controller_wu, nth_smallest)
-        self.controller_wlu = tf.cast(lt, tf.float32)
+	        #calculate read weights and retrieve the appropriate memory
+	        #we need to find the cosine similarity between the key and each memory row
+	        #first normalize the key and each memory row
+	        n_key = K.l2_normalize(key, 0) #((units, ) normed key)
+	        n_memory = K.l2_normalize(m_tm1, 1) #((mem_size x units) of normed mem rows)
+	        mem_cos_similarity = tf.matmul(n_memory, n_key)
+	        #now we have a (memory_size, ) vector of cos similarities 
+	        #between the key and each memory row
+	        c_wr = K.softmax(mem_cos_similarity)
+	        #softmax of each row gives us the influence of each memory row on the read vector
+	        #multiplying this matrix by memory gives us memory read output for the key (units, )
+	        read = tf.matmul(m_tm1, c_wr)
+	        read_list.append(read)
+	        reads += 1
+
+        	#calculate the usage weights: this is degree to which each row was accessed (reads and writes)
+        	#last round and in the rounds before (modified by decay)
+        	c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
         
-        #zero the least used memory location
-        #note this is not correct right notw, smallest index is the smallest
-        #index of the vector of indicies of smallest values over the batch,
-        #not the index of the smallest value over the batch
-        zero_array = tf.constant([[1.] if i != smallest_index else [0.] for i in range(self.memory.shape[0])])
-        ones_array = tf.ones((1, self.units))
-        self.memory = tf.matmul(zero_array, ones_array) * self.memory
+        	#calculate the least used weights: 
+        	#since c_wu is a (memory_size, ) vector, this gives us a vector sorted by decreasing values,
+        	#and a vector of those values's originial indicies
+        	v, i = tf.nn.top_k(c_wu, c_wu.shape[0])
+        	#we need to find the nth smallest entry in v, where n is the number of memory reads
+        	n = min(reads, c_wu.shape[0])
+        	nth_smallest = v[-n]
+        	nth_smallest_i = i[-n]
+        	#reshape nth_smallest for convienience
+        	nth_smallest = tf.constant(nth_smallest, shape=c_wu.shape)
+        	#lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
+        	lt = tf.less_equal(c_wu, nth_smallest)
+        	c_wlu = tf.cast(lt, tf.float32)
         
-        #update the memory
-        self.memory = tf.matmul(tf.transpose(self.controller_ww), h) + self.memory
+        	#zero the least used memory location
+        	zeroing_vector = tf.constant([1. if i != smallest_index else 0. for i in range(self.memory_size)])
+        	ones_vector = tf.ones((1, self.units))
+        	memory = tf.matmul(zero_array, ones_array) * m_tm1
+        
+        	#update the memory
+        	memory = tf.matmul(c_ww, key) + memory
         
         
-        if 0 < self.dropout + self.recurrent_dropout:
+       	if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
-                h._uses_learning_phase = True
+               	h._uses_learning_phase = True
+
+        r = tf.stack(read_list)
                 
-        return r, [h, c, r]
+        return r, [h, c, r, memory, c_wu, c_wlu, c_wr, c_ww, reads]
 
