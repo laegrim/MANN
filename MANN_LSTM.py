@@ -63,7 +63,7 @@ class MANN_LSTM(RNN):
                         recurrent_dropout = recurrent_dropout,
                         controller_dropout = controller_dropout,
                         usage_decay=usage_decay,
-			**kwargs)
+            **kwargs)
         
             super(MANN_LSTM, self).__init__(cell,
                                        return_sequences=return_sequences,
@@ -77,7 +77,7 @@ class MANN_LSTM(RNN):
 
     def get_initial_state(self, inputs):
 
-    	return self.cell.get_initial_state(inputs)
+        return self.cell.get_initial_state(inputs)
             
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
@@ -156,15 +156,15 @@ class MANN_LSTM(RNN):
 
     @property
     def controller_dropout(self):
-    	return self.cell.controller_dropout
+        return self.cell.controller_dropout
 
     @property
     def usage_decay(self):
-    	return self.cell.usage_decay
+        return self.cell.usage_decay
 
     @property
     def memory_size(self):
-    	return self.cell.memory_size
+        return self.cell.memory_size
 
     def get_config(self):
         config = {'units': self.units,
@@ -336,7 +336,7 @@ class MANN_LSTMCell(Layer):
                     ])
             else:
                 
-            	bias_initializer = self.bias_initializer
+                bias_initializer = self.bias_initializer
                 
             self.bias = self.add_weight(shape = (self.units * 4,),
                                        name = 'bias',
@@ -376,8 +376,8 @@ class MANN_LSTMCell(Layer):
 
     def get_initial_state(self, inputs):
 
-    	#input should be (samples, timesteps, input_dim)
-    	#taken from keras.layers.RNN
+        #input should be (samples, timesteps, input_dim)
+        #taken from keras.layers.RNN
         template = K.zeros_like(inputs)
         template = K.sum(template, axis=1) #(samples, input_dim)
 
@@ -389,21 +389,21 @@ class MANN_LSTMCell(Layer):
         c_wlu_tm1 = K.zeros((self.memory_size,))
         c_wr_tm1 = K.zeros((self.memory_size,))
         c_ww_tm1 = K.zeros((self.memory_size,))
-    	reads = tf.Variable(0, tf.int16)
+        reads = tf.Variable(0, tf.int16)
 
-    	self.state_size = [h_tm1.shape,
-    						c_tm1.shape,
-    						r_tm1.shape,
-    						m_tm1.shape,
-    						c_wu_tm1.shape,
-    						c_wlu_tm1.shape,
-    						c_wr_tm1.shape,
-    						c_ww_tm1.shape,
-    						reads.shape]
+        self.state_size = [h_tm1.shape,
+                            c_tm1.shape,
+                            r_tm1.shape,
+                            m_tm1.shape,
+                            c_wu_tm1.shape,
+                            c_wlu_tm1.shape,
+                            c_wr_tm1.shape,
+                            c_ww_tm1.shape,
+                            reads.shape]
 
-    	return [h_tm1, c_tm1, r_tm1, m_tm1, 
-    			c_wu_tm1, c_wlu_tm1, c_wr_tm1,
-    			c_ww_tm1, reads]
+        return [h_tm1, c_tm1, r_tm1, m_tm1, 
+                c_wu_tm1, c_wlu_tm1, c_wr_tm1,
+                c_ww_tm1, reads]
             
     def call(self, inputs, states, training=None):
 
@@ -484,55 +484,55 @@ class MANN_LSTMCell(Layer):
         #key is (1,units)
         for key in tf.unstack(key_list):
             
-        	#calculate the write weights: weight_w = sig(w_gate) * weight_r + (1 - sig(w_gate)) * weight_lu
-        	c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
+            #calculate the write weights: weight_w = sig(w_gate) * weight_r + (1 - sig(w_gate)) * weight_lu
+            c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
                     (1 - K.sigmoid(self.write_gate)) * c_wlu_tm1
         
-	        #calculate read weights and retrieve the appropriate memory
-	        #we need to find the cosine similarity between the key and each memory row
-	        #first normalize the key and each memory row
-	        n_key = K.l2_normalize(key, 0) #((units, ) normed key)
-	        n_memory = K.l2_normalize(m_tm1, 1) #((mem_size x units) of normed mem rows)
-	        mem_cos_similarity = tf.matmul(n_memory, n_key)
-	        #now we have a (memory_size, ) vector of cos similarities 
-	        #between the key and each memory row
-	        c_wr = K.softmax(mem_cos_similarity)
-	        #softmax of each row gives us the influence of each memory row on the read vector
-	        #multiplying this matrix by memory gives us memory read output for the key (units, )
-	        read = tf.matmul(m_tm1, c_wr)
-	        read_list.append(read)
-	        reads += 1
+            #calculate read weights and retrieve the appropriate memory
+            #we need to find the cosine similarity between the key and each memory row
+            #first normalize the key and each memory row
+            n_key = K.l2_normalize(key, 0) #((units, ) normed key)
+            n_memory = K.l2_normalize(m_tm1, 1) #((mem_size x units) of normed mem rows)
+            mem_cos_similarity = tf.matmul(n_memory, n_key)
+            #now we have a (memory_size, ) vector of cos similarities 
+            #between the key and each memory row
+            c_wr = K.softmax(mem_cos_similarity)
+            #softmax of each row gives us the influence of each memory row on the read vector
+            #multiplying this matrix by memory gives us memory read output for the key (units, )
+            read = tf.matmul(m_tm1, c_wr)
+            read_list.append(read)
+            reads += 1
 
-        	#calculate the usage weights: this is degree to which each row was accessed (reads and writes)
-        	#last round and in the rounds before (modified by decay)
-        	c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
+            #calculate the usage weights: this is degree to which each row was accessed (reads and writes)
+            #last round and in the rounds before (modified by decay)
+            c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
         
-        	#calculate the least used weights: 
-        	#since c_wu is a (memory_size, ) vector, this gives us a vector sorted by decreasing values,
-        	#and a vector of those values's originial indicies
-        	v, i = tf.nn.top_k(c_wu, c_wu.shape[0])
-        	#we need to find the nth smallest entry in v, where n is the number of memory reads
-        	n = min(reads, c_wu.shape[0])
-        	nth_smallest = v[-n]
-        	nth_smallest_i = i[-n]
-        	#reshape nth_smallest for convienience
-        	nth_smallest = tf.constant(nth_smallest, shape=c_wu.shape)
-        	#lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
-        	lt = tf.less_equal(c_wu, nth_smallest)
-        	c_wlu = tf.cast(lt, tf.float32)
+            #calculate the least used weights: 
+            #since c_wu is a (memory_size, ) vector, this gives us a vector sorted by decreasing values,
+            #and a vector of those values's originial indicies
+            v, i = tf.nn.top_k(c_wu, c_wu.shape[0])
+            #we need to find the nth smallest entry in v, where n is the number of memory reads
+            n = min(reads, c_wu.shape[0])
+            nth_smallest = v[-n]
+            nth_smallest_i = i[-n]
+            #reshape nth_smallest for convienience
+            nth_smallest = tf.constant(nth_smallest, shape=c_wu.shape)
+            #lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
+            lt = tf.less_equal(c_wu, nth_smallest)
+            c_wlu = tf.cast(lt, tf.float32)
         
-        	#zero the least used memory location
-        	zeroing_vector = tf.constant([1. if i != smallest_index else 0. for i in range(self.memory_size)])
-        	ones_vector = tf.ones((1, self.units))
-        	memory = tf.matmul(zero_array, ones_array) * m_tm1
+            #zero the least used memory location
+            zeroing_vector = tf.constant([1. if i != smallest_index else 0. for i in range(self.memory_size)])
+            ones_vector = tf.ones((1, self.units))
+            memory = tf.matmul(zero_array, ones_array) * m_tm1
         
-        	#update the memory
-        	memory = tf.matmul(c_ww, key) + memory
+            #update the memory
+            memory = tf.matmul(c_ww, key) + memory
         
         
-       	if 0 < self.dropout + self.recurrent_dropout:
+        if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
-               	h._uses_learning_phase = True
+                h._uses_learning_phase = True
 
         r = tf.stack(read_list)
                 
