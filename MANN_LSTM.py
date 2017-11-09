@@ -538,15 +538,17 @@ class MANN_LSTMCell(Layer):
             #print("v: " + str(v))
             #print("i: " + str(i))
             #reshape nth_smallest for convienience
-            mask = K.ones((self.memory_size, 1))
-            nth_smallest = mask * nth_smallest
+            nth_smallest = tf.tile(nth_smallest, [self.memory_size, 1])
+
             #lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
             lt = tf.less_equal(c_wu, nth_smallest)
             c_wlu = tf.cast(lt, tf.float32)
         
             #zero the least used memory location
-            zeroing_vector = tf.constant([1. if i != nth_smallest_i else 0. for i in range(self.memory_size)])
-            zeroing_vector = tf.reshape(zeroing_vector, (128, 1))
+            zeroing_vector = tf.one_hot([nth_smallest_i], self.memory_size, on_value = 0., off_value = 1.)
+            zeroing_vector = tf.transpose(zeroing_vector)
+            #zeroing_vector = tf.constant([1. if i != nth_smallest_i else 0. for i in range(self.memory_size)])
+            #zeroing_vector = tf.reshape(zeroing_vector, (128, 1))
             ones_vector = tf.ones((1, self.units))
             memory = tf.matmul(zeroing_vector, ones_vector) * m_tm1
         
