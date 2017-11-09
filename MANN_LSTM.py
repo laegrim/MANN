@@ -322,7 +322,7 @@ class MANN_LSTMCell(Layer):
                                             name = 'write_gate',
                                             initializer = self.write_gate_initializer,
                                             regularizer = self.write_gate_regularizer,
-                                            constraint = self.write_gate_constraint
+                                            constraint = self.write_gate_constraint)
         
         if self.use_bias:
             
