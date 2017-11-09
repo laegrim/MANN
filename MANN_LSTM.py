@@ -221,7 +221,6 @@ class MANN_LSTMCell(Layer):
         super(MANN_LSTMCell, self).__init__(**kwargs)
         
         self.units = units
-        self.memory = memory
         self.activation = activations.get(activation)
         self.recurrent_activation = activations.get(recurrent_activation)
         self.use_bias = use_bias
@@ -375,20 +374,21 @@ class MANN_LSTMCell(Layer):
                     
         self.built = True
 
-    def get_initial_states(self, inputs):
+    def get_initial_state(self, inputs):
 
     	#input should be (samples, timesteps, input_dim)
     	#taken from keras.layers.RNN
-    	batch_size = inputs.shape[0]
+        template = K.zeros_like(inputs)
+        template = K.sum(template, axis=1) #(samples, input_dim)
 
-    	h_tm1 = K.zeros((batch_size, self.units))
-    	c_tm1 = K.zeros((batch_size, self.units))
-    	r_tm1 = K.zeros((batch_size, self.units))
-    	m_tm1 = K.zeros((batch_size, self.units))
-    	c_wu_tm1 = K.zeros((self.memory_size,))
-    	c_wlu_tm1 = K.zeros((self.memory_size,))
-    	c_wr_tm1 = K.zeros((self.memory_size,))
-    	c_ww_tm1 = K.zeros((self.memory_size,))
+        h_tm1 = K.zeros_like(template)
+        c_tm1 = K.zeros_like(template)
+        r_tm1 = K.zeros_like(template)
+        m_tm1 = K.zeros_like(template)
+        c_wu_tm1 = K.zeros((self.memory_size,))
+        c_wlu_tm1 = K.zeros((self.memory_size,))
+        c_wr_tm1 = K.zeros((self.memory_size,))
+        c_ww_tm1 = K.zeros((self.memory_size,))
     	reads = tf.Variable(0, tf.int16)
 
     	self.state_size = [h_tm1.shape,
