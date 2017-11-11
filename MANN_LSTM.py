@@ -561,6 +561,8 @@ class MANN_LSTMCell(Layer):
                 h._uses_learning_phase = True
 
         r = tf.stack(read_list)
+        print(r.shape)
+        print(r)
                 
         return r, [h, c, r, memory, c_wu, c_wlu, c_wr, c_ww, reads]
 
