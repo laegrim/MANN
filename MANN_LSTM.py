@@ -383,17 +383,17 @@ class MANN_LSTMCell(Layer):
         template = K.zeros_like(inputs)
         template = K.sum(template, axis=(1,2)) #(samples, )
         template = K.expand_dims(template) #(samples, 1)
+        samples = template.shape[0]
         template = K.tile(template, [1, self.units]) #(samples, units)
 
         h_tm1 = K.zeros_like(template)
         c_tm1 = K.zeros_like(template)
         r_tm1 = K.zeros_like(template)
         m_tm1 = K.zeros((self.memory_size, self.units))
-        c_wu_tm1 = K.zeros((self.memory_size, 1))
-        c_wlu_tm1 = K.zeros((self.memory_size, 1))
-        c_wr_tm1 = K.zeros((self.memory_size, 1))
-        c_ww_tm1 = K.zeros((self.memory_size, 1))
-        reads = tf.Variable(0, tf.int32)
+        c_wu_tm1 = K.zeros((self.memory_size, samples))
+        c_wlu_tm1 = K.zeros((self.memory_size, samples))
+        c_wr_tm1 = K.zeros((self.memory_size, samples))
+        c_ww_tm1 = K.zeros((self.memory_size, samples))
 
         self.state_size = [h_tm1.shape,
                             c_tm1.shape,
@@ -402,12 +402,11 @@ class MANN_LSTMCell(Layer):
                             c_wu_tm1.shape,
                             c_wlu_tm1.shape,
                             c_wr_tm1.shape,
-                            c_ww_tm1.shape,
-                            reads.shape]
+                            c_ww_tm1.shape]
 
         return [h_tm1, c_tm1, r_tm1, m_tm1, 
                 c_wu_tm1, c_wlu_tm1, c_wr_tm1,
-                c_ww_tm1, reads]
+                c_ww_tm1]
             
     def call(self, inputs, states, training=None):
 
@@ -423,7 +422,7 @@ class MANN_LSTMCell(Layer):
         c_wlu_tm1 = states[5]
         c_wr_tm1 = states[6]
         c_ww_tm1 = states[7]
-        reads = states[8]
+        #reads = states[8]
         
         if 0 < self.dropout < 1.:
             
@@ -474,95 +473,131 @@ class MANN_LSTMCell(Layer):
         h = o * self.activation(c)
 
         #get the key, check if there's dropouts
+        #key_list is (batch_size, units), one key for each sample in batch
         if 0 < self.controller_dropout < 1.:
             
-            key_list = h * cont_dp_mask[0]
+            key_list = h * cont_dp_mask[0] 
             
         else:
             
             key_list = h
 
-        read_list = []
-        #for the memory access, we need to do this one input at a time
-        #so we unstack the batch of keys
-        #key is (1,units)
+        #we want (keys, batches) so we can figure out read weights 
+        #for each sample in the batch
+        key_list = tf.transpose(key_list) #(units, batch_size)
 
-        for key in tf.dynamic_partition(key_list, [i for i in range(32)], 32):
+        #the write weight is only dependent on last cycles states
+        c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
+                (1 - K.sigmoid(self.write_gate)) + c_wlu_tm1
+
+        #here we find the cosine similarity between keys and memory rows
+        #for each batch's key, and then softmax that to find the read weight
+        n_key = k.l2_normalize(key, 0) 
+        n_memory = k.l2_normalize(m_tm1, 1)
+        mem_cos_similarity = tf.matmul(n_memory, n_key)
+        c_wr = K.softmax(mem_cos_similarity)
+
+        #the read value for each sample is the sum of the weight adjusted memory rows
+        read = tf.matmul(tf.transpose(m_tm1), c_wr)
+
+        #figure out how much each row in memory got used for each sample in batch
+        c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
+
+        #grab the smallest usage value for each sample in the batch, and the index of that row
+        v, i = tf.nn.top_k(tf.transpose(c_wu), self.memory_size) #v, i are (batch_size, memory)
+        nth_smallest = tf.reshape(tf.transpose(v)[-1,:], [-1]) #(batch_size)
+        nth_smallest = tf.expand_dims(nth_smallest, axis = 1) #(batch_size, 1)
+        nth_smallest = tf.tile(nth_smallest, [1, self.memory]) #(batch_size, self.memory)
+        nth_smallest_i = tf.reshape(tf.transpose(i)[-1:], [-1]) #(batch_size)
+        lt = tf.less_equal(c_wu, tf.transpose(nth_smallest))
+        c_wlu = tf.cast(lt, tf.float32)
+        #zero out each sample's least used row in the batch
+        zeroing_vector = tf.one_hot(nth_smallest_i, self.memory_size, on_value = 0., off_value = 1., axis = 0) #(memory, batch)
+        ones_vector = tf.ones((zeroing_vecor.shape[1], self.units))
+        memory = tf.matmul(zering_vector, ones_vector) * m_tm1
+        memory = tf.matmul(c_ww, tf.transpose(key)) + memory
+
+        # read_list = []
+        # #for the memory access, we need to do this one input at a time
+        # #so we unstack the batch of keys
+        # #key is (1,units)
+
+        # for key in tf.dynamic_partition(key_list, [i for i in range(32)], 32):
           
-            key = tf.transpose(key) 
-            #print("key_list: " + str(key_list))
-            #print("key: " + str(key)) 
-            #calculate the write weights: weight_w = sig(w_gate) * weight_r + (1 - sig(w_gate)) * weight_lu
-            c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
-                    (1 - K.sigmoid(self.write_gate)) * c_wlu_tm1
-            #print("c_ww: " + str(c_ww))
-            #calculate read weights and retrieve the appropriate memory
-            #we need to find the cosine similarity between the key and each memory row
-            #first normalize the key and each memory row
-            n_key = K.l2_normalize(key, 0) #((units, 1) normed key)
-            #print("n_key: " + str(n_key))
-            n_memory = K.l2_normalize(m_tm1, 1) #((mem_size x units) of normed mem rows)
-            #print("n_memory: " + str(n_memory))
-            mem_cos_similarity = tf.matmul(n_memory, n_key)
-            #print("mem_cos_similarity: " + str(mem_cos_similarity))
-            #now we have a (memory_size, 1) vector of cos similarities 
-            #between the key and each memory row
-            c_wr = K.softmax(mem_cos_similarity)
-            #print("c_wr: " + str(c_wr))
-            #softmax of each row gives us the influence of each memory row on the read vector
-            #multiplying this matrix by memory gives us memory read output for the key (units, 1)
-            read = tf.matmul(tf.transpose(m_tm1), c_wr)
-            #print("read: " + str(read))
-            read_list.append(tf.reshape(read, [-1]))
-            reads += 1
-            #print("reads: " + str(reads))
+        #     key = tf.transpose(key) 
+        #     #print("key_list: " + str(key_list))
+        #     #print("key: " + str(key)) 
+        #     #calculate the write weights: weight_w = sig(w_gate) * weight_r + (1 - sig(w_gate)) * weight_lu
+        #     c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
+        #             (1 - K.sigmoid(self.write_gate)) * c_wlu_tm1
+        #     #print("c_ww: " + str(c_ww))
+        #     #calculate read weights and retrieve the appropriate memory
+        #     #we need to find the cosine similarity between the key and each memory row
+        #     #first normalize the key and each memory row
+        #     n_key = K.l2_normalize(key, 0) #((units, 1) normed key)
+        #     #print("n_key: " + str(n_key))
+        #     n_memory = K.l2_normalize(m_tm1, 1) #((mem_size x units) of normed mem rows)
+        #     #print("n_memory: " + str(n_memory))
+        #     mem_cos_similarity = tf.matmul(n_memory, n_key)
+        #     #print("mem_cos_similarity: " + str(mem_cos_similarity))
+        #     #now we have a (memory_size, 1) vector of cos similarities 
+        #     #between the key and each memory row
+        #     c_wr = K.softmax(mem_cos_similarity)
+        #     #print("c_wr: " + str(c_wr))
+        #     #softmax of each row gives us the influence of each memory row on the read vector
+        #     #multiplying this matrix by memory gives us memory read output for the key (units, 1)
+        #     read = tf.matmul(tf.transpose(m_tm1), c_wr)
+        #     #print("read: " + str(read))
+        #     read_list.append(tf.reshape(read, [-1]))
+        #     reads += 1
+        #     #print("reads: " + str(reads))
 
-            #calculate the usage weights: this is degree to which each row was accessed (reads and writes)
-            #last round and in the rounds before (modified by decay)
-            c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
+        #     #calculate the usage weights: this is degree to which each row was accessed (reads and writes)
+        #     #last round and in the rounds before (modified by decay)
+        #     c_wu = self.usage_decay * c_wu_tm1 + c_wr + c_ww
             
-            #print("c_wu: " + str(c_wu))
-            #print("memory_size: " + str(self.memory_size))
+        #     #print("c_wu: " + str(c_wu))
+        #     #print("memory_size: " + str(self.memory_size))
              
-            #calculate the least used weights: 
-            #since c_wu is a (memory_size, 1) vector, this gives us a vector sorted by decreasing values,
-            #and a vector of those values's originial indicies
-            v, i = tf.nn.top_k(tf.transpose(c_wu), self.memory_size)
-            #we need to find the nth smallest entry in v, where n is the number of memory reads
-            n = tf.minimum(reads, self.memory_size_c)
-            #print("n: " + str(n))
-            nth_smallest = tf.reshape(tf.transpose(v)[-n], ())
-            nth_smallest_i = tf.reshape(tf.transpose(i)[-n], ())
-            #print("nth_smallest: " + str(nth_smallest))
-            #print("nth_smallest_i: " + str(nth_smallest_i))
-            #print("v: " + str(v))
-            #print("i: " + str(i))
-            #reshape nth_smallest for convienience
-            #nth_smallest = tf.tile(nth_smallest, [self.memory_size, 1])
+        #     #calculate the least used weights: 
+        #     #since c_wu is a (memory_size, 1) vector, this gives us a vector sorted by decreasing values,
+        #     #and a vector of those values's originial indicies
+        #     v, i = tf.nn.top_k(tf.transpose(c_wu), self.memory_size)
+        #     #we need to find the nth smallest entry in v, where n is the number of memory reads
+        #     n = tf.minimum(reads, self.memory_size_c)
+        #     #print("n: " + str(n))
+        #     nth_smallest = tf.reshape(tf.transpose(v)[-n], ())
+        #     nth_smallest_i = tf.reshape(tf.transpose(i)[-n], ())
+        #     #print("nth_smallest: " + str(nth_smallest))
+        #     #print("nth_smallest_i: " + str(nth_smallest_i))
+        #     #print("v: " + str(v))
+        #     #print("i: " + str(i))
+        #     #reshape nth_smallest for convienience
+        #     #nth_smallest = tf.tile(nth_smallest, [self.memory_size, 1])
 
-            #lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
-            lt = tf.less_equal(c_wu, tf.fill([self.memory_size, 1], nth_smallest))
-            c_wlu = tf.cast(lt, tf.float32)
+        #     #lt will be an array of 0s and 1s where the value is greater or lesser than nth_smallest
+        #     lt = tf.less_equal(c_wu, tf.fill([self.memory_size, 1], nth_smallest))
+        #     c_wlu = tf.cast(lt, tf.float32)
         
-            #zero the least used memory location
-            zeroing_vector = tf.one_hot(nth_smallest_i, self.memory_size, on_value = 0., off_value = 1.)
-            zeroing_vector = tf.reshape(zeroing_vector, (self.memory_size, 1))
-            #zeroing_vector = tf.constant([1. if i != nth_smallest_i else 0. for i in range(self.memory_size)])
-            #zeroing_vector = tf.reshape(zeroing_vector, (128, 1))
-            ones_vector = tf.ones((1, self.units))
-            memory = tf.matmul(zeroing_vector, ones_vector) * m_tm1
+        #     #zero the least used memory location
+        #     zeroing_vector = tf.one_hot(nth_smallest_i, self.memory_size, on_value = 0., off_value = 1.)
+        #     zeroing_vector = tf.reshape(zeroing_vector, (self.memory_size, 1))
+        #     #zeroing_vector = tf.constant([1. if i != nth_smallest_i else 0. for i in range(self.memory_size)])
+        #     #zeroing_vector = tf.reshape(zeroing_vector, (128, 1))
+        #     ones_vector = tf.ones((1, self.units))
+        #     memory = tf.matmul(zeroing_vector, ones_vector) * m_tm1
         
-            #update the memory
-            memory = tf.matmul(c_ww, tf.transpose(key)) + memory
+        #     #update the memory
+        #     memory = tf.matmul(c_ww, tf.transpose(key)) + memory
         
         
         if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
                 h._uses_learning_phase = True
         
-        r = tf.stack(read_list)
+        #r = tf.stack(read_list)
         print(r.shape)
         print(r)
                 
-        return r, [h, c, r, memory, c_wu, c_wlu, c_wr, c_ww, reads]
+        return r, [h, c, r, memory, c_wu, c_wlu, c_wr, c_ww]
 
