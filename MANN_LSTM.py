@@ -513,7 +513,7 @@ class MANN_LSTMCell(Layer):
             #multiplying this matrix by memory gives us memory read output for the key (units, 1)
             read = tf.matmul(tf.transpose(m_tm1), c_wr)
             #print("read: " + str(read))
-            read_list.append(read)
+            read_list.append(tf.reshape(read, [-1]))
             reads += 1
             #print("reads: " + str(reads))
 
@@ -559,7 +559,7 @@ class MANN_LSTMCell(Layer):
         if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
                 h._uses_learning_phase = True
-
+        
         r = tf.stack(read_list)
         print(r.shape)
         print(r)
