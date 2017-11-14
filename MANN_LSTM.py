@@ -8,9 +8,19 @@ import numpy as np
 
 class MANN_LSTM(RNN):
     
-    def __init__(self, Controller, memory_size, usage_decay=.95, **kwargs):
+    def __init__(self, Controller, memory_size,
+            usage_decay=.95,
+            write_gate_initializer='glorot_uniform',
+            write_gate_regularizer=None,
+            write_gate_constraint=None,
+            **kwargs):
                     
-            cell = MANN_LSTMCell(Controller, memory_size, usage_decay=usage_decay, **kwargs)
+            cell = MANN_LSTMCell(Controller, memory_size,
+                                 usage_decay=usage_decay,
+                                 write_gate_initializer=write_gate_initializer,
+                                 write_gate_regularizer=write_gate_regularizer,
+                                 write_gate_constraint=write_gate_constraint,
+                                 **kwargs)
         
             super(MANN_LSTM, self).__init__(cell, **kwargs)
 
@@ -20,13 +30,10 @@ class MANN_LSTM(RNN):
             
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
-            self.cell._generate_dropout_mask(inputs, training=training)
-            self.cell._generate_recurrent_dropout_mask(inputs, training=training)
+        self.cell._generate_dropout_mask(inputs, training=training)
+        self.cell._generate_recurrent_dropout_mask(inputs, training=training)
             
-            return super(MANN_LSTM, self).call(inputs, 
-                              mask=mask, 
-                              training=training, 
-                              initial_state=initial_state)
+        return super(MANN_LSTM, self).call(inputs, mask=mask, training=training, initial_state=initial_state)
 
     def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
 
@@ -39,70 +46,6 @@ class MANN_LSTM(RNN):
         return self.cell.Controller
 
     @property
-    def activation(self):
-        return self.cell.activation
-
-    @property
-    def recurrent_activation(self):
-        return self.cell.recurrent_activation
-
-    @property
-    def use_bias(self):
-        return self.cell.use_bias
-
-    @property
-    def kernel_initializer(self):
-        return self.cell.kernel_initializer
-
-    @property
-    def recurrent_initializer(self):
-        return self.cell.recurrent_initializer
-
-    @property
-    def bias_initializer(self):
-        return self.cell.bias_initializer
-
-    @property
-    def unit_forget_bias(self):
-        return self.cell.unit_forget_bias
-
-    @property
-    def kernel_regularizer(self):
-        return self.cell.kernel_regularizer
-
-    @property
-    def recurrent_regularizer(self):
-        return self.cell.recurrent_regularizer
-
-    @property
-    def bias_regularizer(self):
-        return self.cell.bias_regularizer
-
-    @property
-    def kernel_constraint(self):
-        return self.cell.kernel_constraint
-
-    @property
-    def recurrent_constraint(self):
-        return self.cell.recurrent_constraint
-
-    @property
-    def bias_constraint(self):
-        return self.cell.bias_constraint
-
-    @property
-    def dropout(self):
-        return self.cell.dropout
-
-    @property
-    def recurrent_dropout(self):
-        return self.cell.recurrent_dropout
-
-    @property
-    def controller_dropout(self):
-        return self.cell.controller_dropout
-
-    @property
     def usage_decay(self):
         return self.cell.usage_decay
 
@@ -110,27 +53,25 @@ class MANN_LSTM(RNN):
     def memory_size(self):
         return self.cell.memory_size
 
+    @property
+    def write_gate_initializer(self):
+        return self.cell.write_gate_initializer
+
+    @property
+    def write_gate_regularizer(self):
+        return self.cell.write_gate_regularizer
+
+    @property
+    def write_gate_constraint(self):
+        return self.cell.write_gate_constraint
+
     def get_config(self):
-        config = {'Controller': self.Controller,
+        config = {'Controller': self.Controller.get_config(),
                   'memory_size': self.memory_size,
-                  'activation': activations.serialize(self.activation),
-                  'recurrent_activation': activations.serialize(self.recurrent_activation),
-                  'use_bias': self.use_bias,
-                  'kernel_initializer': initializers.serialize(self.kernel_initializer),
-                  'recurrent_initializer': initializers.serialize(self.recurrent_initializer),
-                  'bias_initializer': initializers.serialize(self.bias_initializer),
-                  'unit_forget_bias': self.unit_forget_bias,
-                  'kernel_regularizer': regularizers.serialize(self.kernel_regularizer),
-                  'recurrent_regularizer': regularizers.serialize(self.recurrent_regularizer),
-                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-                  'activity_regularizer': regularizers.serialize(self.activity_regularizer),
-                  'kernel_constraint': constraints.serialize(self.kernel_constraint),
-                  'recurrent_constraint': constraints.serialize(self.recurrent_constraint),
-                  'bias_constraint': constraints.serialize(self.bias_constraint),
-                  'dropout': self.dropout,
-                  'recurrent_dropout': self.recurrent_dropout,
-                  'controller_dropout': self.controller_dropout,
                   'usage_decay': self.usage_decay,
+                  'write_gate_initializer':initializers.serialize(self.write_gate_initializer),
+                  'write_gate_regularizer':regularizers.serialize(self.write_gate_regularizer),
+                  'write_gate_constraint':constraints.serialize(self.write_gate_constraint)
                   }
         base_config = super(MANN_LSTM, self).get_config()
         del base_config['cell']
@@ -142,44 +83,50 @@ class MANN_LSTM(RNN):
 
         
 class MANN_LSTMCell(Layer):
-    def __init__(self, Controller, memory_size, usage_decay=.95, **kwargs):
+    def __init__(self, Controller, memory_size,
+        usage_decay=.95,
+        write_gate_initializer='glorot_uniform',
+        write_gate_regularizer=None,
+        write_gate_constraint=None,
+        **kwargs):
 
         super(MANN_LSTMCell, self).__init__(**kwargs)
         
         self.Controller = Controller
         self.usage_decay = usage_decay
         self.memory_size = memory_size
+        self.write_gate_initializer = write_gate_initializer
+        self.write_gate_regularizer = write_gate_regularizer
+        self.write_gate_constraint = write_gate_constraint
+        self.state_size = tuple([None for i in range(6)]) + self.Controller.cell.state_size
                 
     def build(self, input_shape):
                         
-
         self.write_gate = self.add_weight(shape = (1,),
                                             name = 'write_gate',
                                             initializer = self.write_gate_initializer,
                                             regularizer = self.write_gate_regularizer,
                                             constraint = self.write_gate_constraint)
 
-        controller_input_shape = (input_shape[0], None, input_shape[2] + self.Controller.units)
+        controller_input_shape = (input_shape[0], None, input_shape[1] + self.Controller.units)
         self.Controller.build(controller_input_shape)
                     
         self.built = True
 
     def _generate_dropout_mask(inputs, training=None):
 
-        if hasattr(self.Controller, "_generate_dropout_mask"):
-            self.Controller._generate_dropout_mask(inputs, training=training)
+        if hasattr(self.Controller.cell, "_generate_dropout_mask"):
+            self.Controller.cell._generate_dropout_mask(inputs, training=training)
 
     def _generate_recurrent_dropout_mask(inputs, training=None):
 
-        if hasattr(self.Controller, "_generate_recurrent_dropout_mask"):
-            self.Controller._generate_recurrent_dropout_mask(inputs, training=training)
+        if hasattr(self.Controller.cell, "_generate_recurrent_dropout_mask"):
+            self.Controller.cell._generate_recurrent_dropout_mask(inputs, training=training)
 
     def get_initial_state(self, inputs):
 
         #input should be (samples, timesteps, input_dim)
         #taken from keras.layers.RNN
-
-        c_initial_states = self.Controller.get_initial_state(inputs)
 
         template = K.zeros_like(inputs)
         template = K.sum(template, axis=(1,2)) #(samples, )
@@ -187,13 +134,14 @@ class MANN_LSTMCell(Layer):
         z_temp = K.transpose(K.zeros_like(template))
         template = K.tile(template, [1, self.Controller.units]) #(samples, units)
 
-
         r_tm1 = K.zeros_like(template)
         m_tm1 = K.ones((self.memory_size, self.Controller.units), dtype=tf.float32)
         c_wu_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
         c_wlu_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
         c_wr_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
         c_ww_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
+
+        c_initial_states = self.Controller.get_initial_state(K.concatenate([inputs, K.expand_dims(r_tm1, axis=1)])))
 
         self.state_size = [r_tm1.shape,
                             m_tm1.shape,
@@ -215,10 +163,10 @@ class MANN_LSTMCell(Layer):
         c_wr_tm1 = states[4]
         c_ww_tm1 = states[5]
 
-        controller_states = states[5:]
+        controller_states = states[6:]
         controller_inputs = K.concatenate([inputs, r_tm1])
-        key_list, controller_states = self.Controller.call(controller_inputs, controller_states, training=training)
-        
+        key_list, controller_states = self.Controller.cell.call(controller_inputs, controller_states, training=training)
+
         #we want (keys, batches) so we can figure out read weights 
         #for each sample in the batch
         key_list = K.transpose(key_list) #(units, batch_size)
