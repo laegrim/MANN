@@ -173,7 +173,7 @@ class MANN_LSTM(RNN):
 
     def get_config(self):
         config = {'Controller': self.Controller,
-                  'memory': self.memory,
+                  'memory_size': self.memory_size,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation': activations.serialize(self.recurrent_activation),
                   'use_bias': self.use_bias,
