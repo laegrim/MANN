@@ -141,7 +141,7 @@ class MANN_LSTMCell(Layer):
         c_wr_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
         c_ww_tm1 = K.dot(K.zeros((self.memory_size, 1)), z_temp)
 
-        c_initial_states = self.Controller.get_initial_state(K.concatenate([inputs, K.expand_dims(r_tm1, axis=1)])))
+        c_initial_states = self.Controller.get_initial_state(K.concatenate([inputs, K.expand_dims(r_tm1, axis=1)]))
 
         self.state_size = [r_tm1.shape,
                             m_tm1.shape,
