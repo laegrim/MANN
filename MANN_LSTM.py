@@ -38,7 +38,7 @@ class MANN_LSTM(RNN):
     def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
 
         output = super(MANN_LSTM, self).__call__(inputs, initial_state, constants, **kwargs)
-        output._keras_shape = (inputs.shape[0], self.units)
+        output._keras_shape = (inputs.shape[0], self.Controller.units)
         return output
     
     @property
@@ -113,14 +113,24 @@ class MANN_LSTMCell(Layer):
                     
         self.built = True
 
-    def _generate_dropout_mask(inputs, training=None):
+    def _generate_dropout_mask(self, inputs, training=None):
 
         if hasattr(self.Controller.cell, "_generate_dropout_mask"):
+            template = K.zeros_like(inputs)
+            template = K.sum(template, axis=2)
+            template = K.expand_dims(template)
+            template = K.tile(template, [1, 1, self.Controller.units])
+            inputs = K.concatenate([inputs, template])
             self.Controller.cell._generate_dropout_mask(inputs, training=training)
 
-    def _generate_recurrent_dropout_mask(inputs, training=None):
+    def _generate_recurrent_dropout_mask(self, inputs, training=None):
 
         if hasattr(self.Controller.cell, "_generate_recurrent_dropout_mask"):
+            template = K.zeros_like(inputs)
+            template = K.sum(template, axis=2)
+            template = K.expand_dims(template)
+            template = K.tile(template, [1, 1, self.Controller.units])
+            inputs = K.concatenate([inputs, template])
             self.Controller.cell._generate_recurrent_dropout_mask(inputs, training=training)
 
     def get_initial_state(self, inputs):
@@ -199,12 +209,8 @@ class MANN_LSTMCell(Layer):
         c_wlu = K.cast(lt, tf.float32)
         #zero out each sample's least used row in the batch
         zeroing_vector = tf.one_hot(nth_smallest_i, self.memory_size, on_value = 0., off_value = 1., axis = 0) #(memory, batch)
-        ones_vector = K.ones_like(tf.matmul(tf.transpose(zeroing_vector), tf.ones((self.memory_size, self.units)))) 
+        ones_vector = K.ones_like(tf.matmul(tf.transpose(zeroing_vector), tf.ones((self.memory_size, self.Controller.units)))) 
         memory = K.dot(zeroing_vector, ones_vector) * m_tm1
         memory = K.dot(c_ww, tf.transpose(key_list)) + memory
-
-        if 0 < self.dropout + self.recurrent_dropout:
-            if training is None:
-                h._uses_learning_phase = True
-         
+ 
         return read, [read, memory, c_wu, c_wlu, c_wr, c_ww] + controller_states
