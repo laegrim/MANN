@@ -8,72 +8,11 @@ import numpy as np
 
 class MANN_LSTM(RNN):
     
-    def __init__(self, Controller, memory_size,
-                activation='tanh',
-                recurrent_activation='hard_sigmoid',
-                use_bias=True,
-                kernel_initializer='glorot_uniform',
-                recurrent_initializer='orthogonal',
-                bias_initializer='zeros',
-                unit_forget_bias=True,
-                kernel_regularizer=None,
-                recurrent_regularizer=None,
-                bias_regularizer=None,
-                activity_regularizer=None,
-                kernel_constraint=None,
-                recurrent_constraint=None,
-                bias_constraint=None,
-                dropout=0.,
-                recurrent_dropout=0.,
-                controller_dropout=0.,
-                usage_decay=.95,
-                return_sequences=False,
-                return_state=False,
-                go_backwards=False,
-                stateful=False,
-                unroll=False,
-                **kwargs):
-           
-            if K.backend() == 'cntk':
-                if not kwargs.get('unroll') and (dropout > 0 or recurrent_dropout > 0):
-                    warnings.warn(
-                        'RNN dropout is not supported with the CNTK backend '
-                        'when using dynamic RNNs (i.e. non-unrolled). '
-                        'You can either set `unroll=True`, '
-                        'set `dropout` and `recurrent_dropout` to 0, '
-                        'or use a different backend.')
-                    dropout = 0.
-                    recurrent_dropout = 0.
+    def __init__(self, Controller, memory_size, usage_decay=.95, **kwargs):
                     
-            cell = MANN_LSTMCell(Controller, memory_size,
-                        activation = activation,
-                        recurrent_activation = recurrent_activation,
-                        use_bias = use_bias,
-                        kernel_initializer = kernel_initializer,
-                        recurrent_initializer = recurrent_initializer,
-                        unit_forget_bias = unit_forget_bias,
-                        bias_initializer = bias_initializer,
-                        kernel_regularizer = kernel_regularizer,
-                        recurrent_regularizer = recurrent_regularizer,
-                        bias_regularizer = bias_regularizer,
-                        kernel_constraint = kernel_constraint,
-                        recurrent_constraint = recurrent_constraint,
-                        bias_constraint = bias_constraint,
-                        dropout = dropout,
-                        recurrent_dropout = recurrent_dropout,
-                        controller_dropout = controller_dropout,
-                        usage_decay=usage_decay,
-                        **kwargs)
+            cell = MANN_LSTMCell(Controller, memory_size, usage_decay=usage_decay, **kwargs)
         
-            super(MANN_LSTM, self).__init__(cell,
-                                       return_sequences=return_sequences,
-                                       return_state=return_state,
-                                       go_backwards=go_backwards,
-                                       stateful=stateful,
-                                       unroll=unroll,
-                                       **kwargs)
-            
-            self.activity_regularizer = regularizers.get(activity_regularizer)
+            super(MANN_LSTM, self).__init__(cell, **kwargs)
 
     def get_initial_state(self, inputs):
 
@@ -267,7 +206,7 @@ class MANN_LSTMCell(Layer):
         return [r_tm1, m_tm1, c_wu_tm1, c_wlu_tm1, c_wr_tm1, c_ww_tm1] + \
                 [state for state in c_initial_states]
             
-    def call(self, inputs, states, training=None)
+    def call(self, inputs, states, training=None):
 
         r_tm1 = states[0]
         m_tm1 = states[1]
@@ -276,7 +215,7 @@ class MANN_LSTMCell(Layer):
         c_wr_tm1 = states[4]
         c_ww_tm1 = states[5]
 
-        controller_states = [5:]
+        controller_states = states[5:]
         controller_inputs = K.concatenate([inputs, r_tm1])
         key_list, controller_states = self.Controller.call(controller_inputs, controller_states, training=training)
         
