@@ -10,19 +10,22 @@ class MANN_LSTM(RNN):
     
     def __init__(self, Controller, memory_size,
             usage_decay=.95,
+            stateful=True,
             write_gate_initializer='glorot_uniform',
             write_gate_regularizer=None,
             write_gate_constraint=None,
             **kwargs):
+        
+        self.stateful = stateful
                     
-            cell = MANN_LSTMCell(Controller, memory_size,
+        cell = MANN_LSTMCell(Controller, memory_size,
                                  usage_decay=usage_decay,
                                  write_gate_initializer=write_gate_initializer,
                                  write_gate_regularizer=write_gate_regularizer,
                                  write_gate_constraint=write_gate_constraint,
                                  **kwargs)
         
-            super(MANN_LSTM, self).__init__(cell, **kwargs)
+        super(MANN_LSTM, self).__init__(cell, stateful=stateful, **kwargs)
 
     def get_initial_state(self, inputs):
 
@@ -36,7 +39,10 @@ class MANN_LSTM(RNN):
         return super(MANN_LSTM, self).call(inputs, mask=mask, training=training, initial_state=initial_state)
 
     def __call__(self, inputs, initial_state=None, constants=None, **kwargs):
-
+         
+        if self._states is None:
+            self.states = self.get_initial_state(inputs)
+            
         output = super(MANN_LSTM, self).__call__(inputs, initial_state, constants, **kwargs)
         output._keras_shape = (inputs.shape[0], self.Controller.units)
         return output
@@ -69,7 +75,7 @@ class MANN_LSTM(RNN):
         config = {'Controller': self.Controller.get_config(),
                   'memory_size': self.memory_size,
                   'usage_decay': self.usage_decay,
-                  'write_gate_initializer':initializers.serialize(self.write_gate_initializer),
+                  #'write_gate_initializer':initializers.serialize(self.write_gate_initializer),
                   'write_gate_regularizer':regularizers.serialize(self.write_gate_regularizer),
                   'write_gate_constraint':constraints.serialize(self.write_gate_constraint)
                   }
@@ -99,10 +105,19 @@ class MANN_LSTMCell(Layer):
         self.write_gate_regularizer = write_gate_regularizer
         self.write_gate_constraint = write_gate_constraint
         self.state_size = tuple([None for i in range(5)]) + self.Controller.cell.state_size
-                
+        
+    @property
+    def trainable_weights(self):
+        if not self.trainable:
+            return []
+        weights = []
+        weights += self._trainable_weights
+        weights += self.Controller.trainable_weights
+        return weights
+        
     def build(self, input_shape):
                         
-        self.write_gate = self.add_weight(shape = (1,),
+        self.write_gate = self.add_weight(shape = (32,),
                                             name = 'write_gate',
                                             initializer = self.write_gate_initializer,
                                             regularizer = self.write_gate_regularizer,
@@ -176,7 +191,7 @@ class MANN_LSTMCell(Layer):
 
         #the write weight is only dependent on last cycles states
         c_ww = K.sigmoid(self.write_gate) * c_wr_tm1 + \
-                (1 - K.sigmoid(self.write_gate)) + c_wlu_tm1
+                (1 - K.sigmoid(self.write_gate)) * c_wlu_tm1
 
         #here we find the cosine similarity between keys and memory rows
         #for each batch's key, and then softmax that to find the read weight
