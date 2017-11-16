@@ -13,21 +13,21 @@ class MANN_LSTM(RNN):
             write_gate_initializer='glorot_uniform',
             write_gate_regularizer=None,
             write_gate_constraint=None,
-            memory_initializer='ones',
-            memory_regularizer=None,
-            memory_constraint=None,
-            read_initializer='zeros',
-            read_regularizer=None,
-            read_constraint=None,
-            least_used_weights_initializer='zeros',
-            least_used_weights_regularizer=None,
-            least_used_weights_constraint=None,
-            usage_weights_initializer='zeros',
-            usage_weights_regularizer=None,
-            usage_weights_constraint=None,
-            read_weights_initializer='zeros',
-            read_weights_regularizer=None,
-            read_weights_constraint=None,
+            # memory_initializer='ones',
+            # memory_regularizer=None,
+            # memory_constraint=None,
+            # read_initializer='zeros',
+            # read_regularizer=None,
+            # read_constraint=None,
+            # least_used_weights_initializer='zeros',
+            # least_used_weights_regularizer=None,
+            # least_used_weights_constraint=None,
+            # usage_weights_initializer='zeros',
+            # usage_weights_regularizer=None,
+            # usage_weights_constraint=None,
+            # read_weights_initializer='zeros',
+            # read_weights_regularizer=None,
+            # read_weights_constraint=None,
             **kwargs):
                             
         cell = MANN_LSTMCell(Controller, memory_size,
@@ -35,21 +35,21 @@ class MANN_LSTM(RNN):
                                  write_gate_initializer=write_gate_initializer,
                                  write_gate_regularizer=write_gate_regularizer,
                                  write_gate_constraint=write_gate_constraint,
-                                 memory_initializer=memory_initializer,
-                                 memory_regularizer=memory_regularizer,
-                                 memory_constraint=memory_constraint,
-                                 read_initializer=read_weights_initializer,
-                                 read_regularizer=read_regularizer,
-                                 read_constraint=read_constraint,
-                                 least_used_weights_initializer=least_used_weights_initializer,
-                                 least_used_weights_regularizer=least_used_weights_regularizer,
-                                 least_used_weights_constraint=least_used_weights_constraint,
-                                 usage_weights_initializer=usage_weights_initializer,
-                                 usage_weights_regularizer=usage_weights_regularizer,
-                                 usage_weights_constraint=usage_weights_constraint,
-                                 read_weights_initializer=read_weights_initializer,
-                                 read_weights_regularizer=read_weights_regularizer,
-                                 read_weights_constraint=read_weights_constraint,
+                                 # memory_initializer=memory_initializer,
+                                 # memory_regularizer=memory_regularizer,
+                                 # memory_constraint=memory_constraint,
+                                 # read_initializer=read_weights_initializer,
+                                 # read_regularizer=read_regularizer,
+                                 # read_constraint=read_constraint,
+                                 # least_used_weights_initializer=least_used_weights_initializer,
+                                 # least_used_weights_regularizer=least_used_weights_regularizer,
+                                 # least_used_weights_constraint=least_used_weights_constraint,
+                                 # usage_weights_initializer=usage_weights_initializer,
+                                 # usage_weights_regularizer=usage_weights_regularizer,
+                                 # usage_weights_constraint=usage_weights_constraint,
+                                 # read_weights_initializer=read_weights_initializer,
+                                 # read_weights_regularizer=read_weights_regularizer,
+                                 # read_weights_constraint=read_weights_constraint,
                                  **kwargs)
         
         super(MANN_LSTM, self).__init__(cell, **kwargs)
@@ -105,65 +105,65 @@ class MANN_LSTM(RNN):
     def write_gate_constraint(self):
         return self.cell.write_gate_constraint
 
-    @property
-    def memory_initializer(self):
-        return self.cell.memory_initializer
+    # @property
+    # def memory_initializer(self):
+    #     return self.cell.memory_initializer
 
-    @property
-    def memory_regularizer(self):
-        return self.cell.memory_regularizer
+    # @property
+    # def memory_regularizer(self):
+    #     return self.cell.memory_regularizer
 
-    @property
-    def memory_constraint(self):
-        return self.cell.memory_constraint
+    # @property
+    # def memory_constraint(self):
+    #     return self.cell.memory_constraint
 
-    @property
-    def read_initializer(self):
-        return self.cell.read_initializer
+    # @property
+    # def read_initializer(self):
+    #     return self.cell.read_initializer
 
-    @property
-    def read_regularizer(self):
-        return self.cell.read_regularizer
+    # @property
+    # def read_regularizer(self):
+    #     return self.cell.read_regularizer
 
-    @property
-    def read_constraint(self):
-        return self.cell.read_constraint
+    # @property
+    # def read_constraint(self):
+    #     return self.cell.read_constraint
 
-    @property
-    def least_used_weights_initializer(self):
-        return self.cell.least_used_weights_initializer
+    # @property
+    # def least_used_weights_initializer(self):
+    #     return self.cell.least_used_weights_initializer
 
-    @property
-    def least_used_weights_regularizer(self):
-        return self.cell.least_used_weights_regularizer
+    # @property
+    # def least_used_weights_regularizer(self):
+    #     return self.cell.least_used_weights_regularizer
 
-    @property
-    def least_used_weights_constraint(self):
-        return self.cell.least_used_weights_constraint
+    # @property
+    # def least_used_weights_constraint(self):
+    #     return self.cell.least_used_weights_constraint
 
-    @property
-    def usage_weights_initializer(self):
-        return self.cell.usage_weights_initializer
+    # @property
+    # def usage_weights_initializer(self):
+    #     return self.cell.usage_weights_initializer
 
-    @property
-    def usage_weights_regularizer(self):
-        return self.cell.usage_weights_regularizer
+    # @property
+    # def usage_weights_regularizer(self):
+    #     return self.cell.usage_weights_regularizer
 
-    @property
-    def usage_weights_constraint(self):
-        return self.cell.usage_weights_constraint
+    # @property
+    # def usage_weights_constraint(self):
+    #     return self.cell.usage_weights_constraint
 
-    @property
-    def read_weights_initializer(self):
-        return self.cell.read_weights_initializer
+    # @property
+    # def read_weights_initializer(self):
+    #     return self.cell.read_weights_initializer
 
-    @property
-    def read_weights_regularizer(self):
-        return self.cell.read_weights_regularizer
+    # @property
+    # def read_weights_regularizer(self):
+    #     return self.cell.read_weights_regularizer
 
-    @property
-    def read_weights_constraint(self):
-        return self.cell.read_weights_constraint
+    # @property
+    # def read_weights_constraint(self):
+    #     return self.cell.read_weights_constraint
 
     def get_config(self):
         config = {'Controller': self.Controller.get_config(),
@@ -172,21 +172,21 @@ class MANN_LSTM(RNN):
                   'write_gate_initializer':initializers.serialize(self.write_gate_initializer),
                   'write_gate_regularizer':regularizers.serialize(self.write_gate_regularizer),
                   'write_gate_constraint':constraints.serialize(self.write_gate_constraint),
-                  'memory_initializer':initializers.serialize(self.memory_initializer),
-                  'memory_regularizer':regularizers.serialize(self.memory_regularizer),
-                  'memory_constraint':constraints.serialize(self.memory_constraint),
-                  'read_initializer':initializers.serialize(self.read_initializer),
-                  'read_regularizer':regularizers.serialize(self.read_regularizer),
-                  'read_constraint':constraints.serialize(self.read_constraint),
-                  'least_used_weights_initializer':initializers.serialize(self.least_used_weights_initializer),
-                  'least_used_weights_regularizer':regularizers.serialize(self.least_used_weights_regularizer),
-                  'least_used_weights_constraint':constraints.serialize(self.least_used_weights_constraint),
-                  'usage_weights_initializer':initializers.serialize(self.usage_weights_initializer),
-                  'usage_weights_regularizer':regularizers.serialize(self.usage_weights_regularizer),
-                  'usage_weights_constraint':constraints.serialize(self.usage_weights_constraint),
-                  'read_weights_initializer':initializers.serialize(self.read_weights_initializer),
-                  'read_weights_regularizer':regularizers.serialize(self.read_weights_regularizer),
-                  'read_weights_constraint':constraints.serialize(self.read_weights_constraint)
+                  # 'memory_initializer':initializers.serialize(self.memory_initializer),
+                  # 'memory_regularizer':regularizers.serialize(self.memory_regularizer),
+                  # 'memory_constraint':constraints.serialize(self.memory_constraint),
+                  # 'read_initializer':initializers.serialize(self.read_initializer),
+                  # 'read_regularizer':regularizers.serialize(self.read_regularizer),
+                  # 'read_constraint':constraints.serialize(self.read_constraint),
+                  # 'least_used_weights_initializer':initializers.serialize(self.least_used_weights_initializer),
+                  # 'least_used_weights_regularizer':regularizers.serialize(self.least_used_weights_regularizer),
+                  # 'least_used_weights_constraint':constraints.serialize(self.least_used_weights_constraint),
+                  # 'usage_weights_initializer':initializers.serialize(self.usage_weights_initializer),
+                  # 'usage_weights_regularizer':regularizers.serialize(self.usage_weights_regularizer),
+                  # 'usage_weights_constraint':constraints.serialize(self.usage_weights_constraint),
+                  # 'read_weights_initializer':initializers.serialize(self.read_weights_initializer),
+                  # 'read_weights_regularizer':regularizers.serialize(self.read_weights_regularizer),
+                  # 'read_weights_constraint':constraints.serialize(self.read_weights_constraint)
                   }
         base_config = super(MANN_LSTM, self).get_config()
         del base_config['cell']
@@ -203,21 +203,21 @@ class MANN_LSTMCell(Layer):
         write_gate_initializer='glorot_uniform',
         write_gate_regularizer=None,
         write_gate_constraint=None,
-        memory_initializer='ones',
-        memory_regularizer=None,
-        memory_constraint=None,
-        read_initializer='zeros',
-        read_regularizer=None,
-        read_constraint=None,
-        least_used_weights_initializer='zeros',
-        least_used_weights_regularizer=None,
-        least_used_weights_constraint=None,
-        usage_weights_initializer='zeros',
-        usage_weights_regularizer=None,
-        usage_weights_constraint=None,
-        read_weights_initializer='zeros',
-        read_weights_regularizer=None,
-        read_weights_constraint=None,
+        # memory_initializer='ones',
+        # memory_regularizer=None,
+        # memory_constraint=None,
+        # read_initializer='zeros',
+        # read_regularizer=None,
+        # read_constraint=None,
+        # least_used_weights_initializer='zeros',
+        # least_used_weights_regularizer=None,
+        # least_used_weights_constraint=None,
+        # usage_weights_initializer='zeros',
+        # usage_weights_regularizer=None,
+        # usage_weights_constraint=None,
+        # read_weights_initializer='zeros',
+        # read_weights_regularizer=None,
+        # read_weights_constraint=None,
         **kwargs):
 
         super(MANN_LSTMCell, self).__init__(**kwargs)
@@ -227,25 +227,25 @@ class MANN_LSTMCell(Layer):
         self.memory_size = memory_size
 
         self.write_gate_initializer = initializers.get(write_gate_initializer)
-        self.memory_initializer = initializers.get(memory_initializer)
-        self.read_initializer = initializers.get(read_initializer)
-        self.least_used_weights_initializer = initializers.get(least_used_weights_initializer)
-        self.usage_weights_initializer = initializers.get(usage_weights_initializer)
-        self.read_weights_initializer = initializers.get(read_weights_initializer)
+        # self.memory_initializer = initializers.get(memory_initializer)
+        # self.read_initializer = initializers.get(read_initializer)
+        # self.least_used_weights_initializer = initializers.get(least_used_weights_initializer)
+        # self.usage_weights_initializer = initializers.get(usage_weights_initializer)
+        # self.read_weights_initializer = initializers.get(read_weights_initializer)
 
         self.write_gate_regularizer = regularizers.get(write_gate_regularizer)
-        self.memory_regularizer = regularizers.get(memory_regularizer)
-        self.read_regularizer = regularizers.get(read_regularizer)
-        self.least_used_weights_regularizer = regularizers.get(least_used_weights_regularizer)
-        self.usage_weights_regularizer = regularizers.get(usage_weights_regularizer)
-        self.read_weights_regularizer = regularizers.get(read_weights_regularizer)
+        # self.memory_regularizer = regularizers.get(memory_regularizer)
+        # self.read_regularizer = regularizers.get(read_regularizer)
+        # self.least_used_weights_regularizer = regularizers.get(least_used_weights_regularizer)
+        # self.usage_weights_regularizer = regularizers.get(usage_weights_regularizer)
+        # self.read_weights_regularizer = regularizers.get(read_weights_regularizer)
 
         self.write_gate_constraint = constraints.get(write_gate_constraint)
-        self.memory_constraint = constraints.get(memory_constraint)
-        self.read_constraint = constraints.get(read_constraint)
-        self.least_used_weights_constraint = constraints.get(least_used_weights_constraint)
-        self.usage_weights_constraint = constraints.get(usage_weights_constraint)
-        self.read_weights_constraint = constraints.get(read_weights_constraint)
+        # self.memory_constraint = constraints.get(memory_constraint)
+        # self.read_constraint = constraints.get(read_constraint)
+        # self.least_used_weights_constraint = constraints.get(least_used_weights_constraint)
+        # self.usage_weights_constraint = constraints.get(usage_weights_constraint)
+        # self.read_weights_constraint = constraints.get(read_weights_constraint)
 
         self.state_size = tuple([None for i in range(5)]) + self.Controller.cell.state_size
         
@@ -266,40 +266,46 @@ class MANN_LSTMCell(Layer):
                                             regularizer = self.write_gate_regularizer,
                                             constraint = self.write_gate_constraint)
 
-        self.memory = self.add_weight(shape = (self.memory_size, self.Controller.units),
-                                            name = 'memory',
-                                            initializer = self.memory_initializer,
-                                            regularizer = self.memory_regularizer,
-                                            constraint = self.memory_constraint,
-                                            trainable = False)
+        # self.memory = self.add_weight(shape = (self.memory_size, self.Controller.units),
+        #                                     name = 'memory',
+        #                                     initializer = self.memory_initializer,
+        #                                     regularizer = self.memory_regularizer,
+        #                                     constraint = self.memory_constraint,
+        #                                     trainable = False)
 
-        self.read = self.add_weight(shape = (32, self.Controller.units),
-                                            name = 'read',
-                                            initializer = self.read_initializer,
-                                            regularizer = self.read_regularizer,
-                                            constraint = self.read_constraint,
-                                            trainable = False)
+        # self.read = self.add_weight(shape = (32, self.Controller.units),
+        #                                     name = 'read',
+        #                                     initializer = self.read_initializer,
+        #                                     regularizer = self.read_regularizer,
+        #                                     constraint = self.read_constraint,
+        #                                     trainable = False)
 
-        self.least_used_weights = self.add_weight(shape = (self.memory_size, 32),
-                                            name = 'least_used_weights',
-                                            initializer = self.least_used_weights_initializer,
-                                            regularizer = self.least_used_weights_regularizer,
-                                            constraint = self.least_used_weights_constraint,
-                                            trainable = False)
+        # self.least_used_weights = self.add_weight(shape = (self.memory_size, 32),
+        #                                     name = 'least_used_weights',
+        #                                     initializer = self.least_used_weights_initializer,
+        #                                     regularizer = self.least_used_weights_regularizer,
+        #                                     constraint = self.least_used_weights_constraint,
+        #                                     trainable = False)
 
-        self.usage_weights = self.add_weight(shape = (self.memory_size, 32),
-                                            name = 'usage_weights',
-                                            initializer = self.usage_weights_initializer,
-                                            regularizer = self.usage_weights_regularizer,
-                                            constraint = self.usage_weights_constraint,
-                                            trainable = False)
+        # self.usage_weights = self.add_weight(shape = (self.memory_size, 32),
+        #                                     name = 'usage_weights',
+        #                                     initializer = self.usage_weights_initializer,
+        #                                     regularizer = self.usage_weights_regularizer,
+        #                                     constraint = self.usage_weights_constraint,
+        #                                     trainable = False)
 
-        self.read_weights = self.add_weight(shape = (self.memory_size, 32),
-                                            name = 'read_weights',
-                                            initializer = self.read_weights_initializer,
-                                            regularizer = self.read_weights_regularizer,
-                                            constraint = self. read_weights_constraint,
-                                            trainable = False)
+        # self.read_weights = self.add_weight(shape = (self.memory_size, 32),
+        #                                     name = 'read_weights',
+        #                                     initializer = self.read_weights_initializer,
+        #                                     regularizer = self.read_weights_regularizer,
+        #                                     constraint = self. read_weights_constraint,
+        #                                     trainable = False)
+
+        self.memory = K.ones((self.memory_size, self.Controller.units)) * 1e-6
+        self.read = K.zeros((32, self.Controller.units))
+        self.least_used_weights = K.zeros((self.memory_size, 32))
+        self.usage_weights = K.zeros((self.memory_size, 32))
+        self.read_weights = K.zeros((self.memory_size, 32))
 
         controller_input_shape = (input_shape[0], None, input_shape[1] + self.Controller.units)
         self.Controller.build(controller_input_shape)
@@ -311,12 +317,17 @@ class MANN_LSTMCell(Layer):
 
         print(type(self.memory))
 
-        self.memory.assign(self.memory_initializer(self.memory.shape))
-        self.read.assign(self.read_initializer(self.read.shape))
-        self.least_used_weights.assign(self.least_used_weights_initializer(self.least_used_weights.shape))
-        self.usage_weights.assign(self.usage_weights_initializer(self.usage_weights.shape))
-        self.read_weights.assign(self.read_weights_initializer(self.read_weights.shape))
+        # self.memory.assign(self.memory_initializer(self.memory.shape))
+        # self.read.assign(self.read_initializer(self.read.shape))
+        # self.least_used_weights.assign(self.least_used_weights_initializer(self.least_used_weights.shape))
+        # self.usage_weights.assign(self.usage_weights_initializer(self.usage_weights.shape))
+        # self.read_weights.assign(self.read_weights_initializer(self.read_weights.shape))
 
+        self.memory = K.ones((self.memory_size, self.Controller.units)) * 1e-6
+        self.read = K.zeros((32, self.Controller.units))
+        self.least_used_weights = K.zeros((self.memory_size, 32))
+        self.usage_weights = K.zeros((self.memory_size, 32))
+        self.read_weights = K.zeros((self.memory_size, 32))
 
     def get_memory(self):
         return K.get_value(self.memory)
