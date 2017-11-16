@@ -47,6 +47,54 @@ class MANN_LSTM(RNN):
         output._keras_shape = (inputs.shape[0], self.Controller.units)
         return output
     
+    def reset_states(self, states=None):
+
+        if not self.stateful:
+            raise AttributeError('Layer must be stateful.')
+
+        batch_size = self.input_spec[0].shape[0]
+        mock_input = K.zeros((batch_size, 1, 1))
+
+        if not batch_size:
+            raise ValueError('If a RNN is stateful, it needs to know '
+                             'its batch size. Specify the batch size '
+                             'of your input tensors: \n'
+                             '- If using a Sequential model, '
+                             'specify the batch size by passing '
+                             'a `batch_input_shape` '
+                             'argument to your first layer.\n'
+                             '- If using the functional API, specify '
+                             'the time dimension by passing a '
+                             '`batch_shape` argument to your Input layer.')
+
+        # initialize state if None
+        if self.states is None or self.states[0] is None:
+            self.get_initial_state(mock_input)
+        elif states is None:
+            self.get_initial_state(mock_input)
+        else:
+            if not isinstance(states, (list, tuple)):
+                states = [states]
+            if len(states) != len(self.states):
+                raise ValueError('Layer ' + self.name + ' expects ' +
+                                 str(len(self.states)) + ' states, '
+                                 'but it received ' + str(len(states)) +
+                                 ' state values. Input received: ' +
+                                 str(states))
+            for index, (value, state) in enumerate(zip(states, self.states)):
+                if hasattr(self.cell.state_size, '__len__'):
+                    dim = self.cell.state_size[index]
+                else:
+                    dim = self.cell.state_size
+                if value.shape != (batch_size, dim):
+                    raise ValueError('State ' + str(index) +
+                                     ' is incompatible with layer ' +
+                                     self.name + ': expected shape=' +
+                                     str((batch_size, dim)) +
+                                     ', found shape=' + str(value.shape))
+                # TODO: consider batch calls to `set_value`.
+                K.set_value(state, value)
+                
     @property
     def Controller(self):
         return self.cell.Controller
