@@ -13,7 +13,7 @@ class MANN_LSTM(RNN):
             write_gate_initializer='glorot_uniform',
             write_gate_regularizer=None,
             write_gate_constraint=None,
-            memory_initializer=initializers.Constant(1e-6),
+            memory_initializer='ones',
             memory_regularizer=None,
             memory_constraint=None,
             read_initializer='zeros',
@@ -61,6 +61,9 @@ class MANN_LSTM(RNN):
     def reinitialize_nt_weights(self):
 
         self.cell.reinitialize_nt_weights()
+
+    def get_memory(self):
+        return self.cell.get_memory()
 
     def call(self, inputs, mask=None, training=None, initial_state=None):
             
@@ -200,7 +203,7 @@ class MANN_LSTMCell(Layer):
         write_gate_initializer='glorot_uniform',
         write_gate_regularizer=None,
         write_gate_constraint=None,
-        memory_initializer=initializers.Constant(1e-6),
+        memory_initializer='ones',
         memory_regularizer=None,
         memory_constraint=None,
         read_initializer='zeros',
@@ -224,7 +227,7 @@ class MANN_LSTMCell(Layer):
         self.memory_size = memory_size
 
         self.write_gate_initializer = initializers.get(write_gate_initializer)
-        self.memory_initializer = initializers.get(memory_initialzer)
+        self.memory_initializer = initializers.get(memory_initializer)
         self.read_initializer = initializers.get(read_initializer)
         self.least_used_weights_initializer = initializers.get(least_used_weights_initializer)
         self.usage_weights_initializer = initializers.get(usage_weights_initializer)
@@ -293,7 +296,7 @@ class MANN_LSTMCell(Layer):
 
         self.read_weights = self.add_weight(shape = (self.memory_size, 32),
                                             name = 'read_weights',
-                                            initialzier = self.read_weights_initializer,
+                                            initializer = self.read_weights_initializer,
                                             regularizer = self.read_weights_regularizer,
                                             constraint = self. read_weights_constraint,
                                             trainable = False)
@@ -305,11 +308,18 @@ class MANN_LSTMCell(Layer):
 
     def reinitialize_nt_weights(self):
 
+
+        print(type(self.memory))
+
         self.memory.assign(self.memory_initializer(self.memory.shape))
         self.read.assign(self.read_initializer(self.read.shape))
         self.least_used_weights.assign(self.least_used_weights_initializer(self.least_used_weights.shape))
         self.usage_weights.assign(self.usage_weights_initializer(self.usage_weights.shape))
         self.read_weights.assign(self.read_weights_initializer(self.read_weights.shape))
+
+
+    def get_memory(self):
+        return K.get_value(self.memory)
 
     def _generate_dropout_mask(self, inputs, training=None):
 
@@ -336,7 +346,7 @@ class MANN_LSTMCell(Layer):
         #input should be (samples, timesteps, input_dim)
         #taken from keras.layers.RNN
 
-        c_initial_states = self.Controller.get_initial_state(K.concatenate([inputs, K.expand_dims(r_tm1, axis=1)]))
+        c_initial_states = self.Controller.get_initial_state(K.concatenate([inputs, K.zeros((inputs.shape[0], 1, self.Controller.units))]))
 
         self.state_size = [state.shape for state in c_initial_states]
 
