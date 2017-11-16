@@ -69,9 +69,9 @@ class MANN_LSTM(RNN):
 
         # initialize state if None
         if self.states is None or self.states[0] is None:
-            self.get_initial_state(mock_input)
+            self.states = self.get_initial_state(mock_input)
         elif states is None:
-            self.get_initial_state(mock_input)
+            self.states = self.get_initial_state(mock_input)
         else:
             if not isinstance(states, (list, tuple)):
                 states = [states]
@@ -94,7 +94,7 @@ class MANN_LSTM(RNN):
                                      ', found shape=' + str(value.shape))
                 # TODO: consider batch calls to `set_value`.
                 K.set_value(state, value)
-                
+
     @property
     def Controller(self):
         return self.cell.Controller
